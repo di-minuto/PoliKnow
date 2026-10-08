@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
+// Todas las páginas de la app dependen de la sesión del usuario, así que se
+// renderizan bajo demanda; no se activa Cache Components.
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
   turbopack: {
     rules: {
       "*.css": {
