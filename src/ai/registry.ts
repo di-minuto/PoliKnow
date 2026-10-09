@@ -5,7 +5,8 @@ import { DisabledProvider } from "./providers/disabled";
 import { OpenAIProvider } from "./providers/openai";
 
 export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
-export const GEMINI_MODEL = "gemini-2.5-flash";
+/** Estable y con capa gratuita (gemini-2.5-flash ya no está disponible). */
+export const GEMINI_MODEL = "gemini-3.5-flash";
 
 type ProviderFactory = (env: ServerEnv) => AIProvider;
 

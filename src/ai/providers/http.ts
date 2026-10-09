@@ -13,10 +13,12 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
 const TIMEOUT_MS = 90_000;
 
-function friendly(status: number, provider: string): string {
+function friendly(status: number, provider: string, model?: string): string {
   if (status === 401 || status === 403) return `La clave de API de ${provider} no es válida o no tiene permiso.`;
   if (status === 429) return `${provider} ha limitado las peticiones (cuota o límite por minuto). Prueba en un rato.`;
-  if (status === 404) return `${provider} no encuentra el modelo configurado (revisa AI_MODEL).`;
+  if (status === 404) {
+    return `${provider} no encuentra el modelo ${model ? `«${model}»` : "configurado"}: puede que ya no exista. Revisa AI_MODEL o bórrala para usar el modelo por defecto.`;
+  }
   if (status >= 500) return `${provider} no responde ahora mismo. Prueba en un rato.`;
   return `${provider} ha rechazado la petición (error ${status}).`;
 }
@@ -44,7 +46,8 @@ export async function postJson(
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     console.error(`[ia] ${provider} ${response.status}: ${detail.slice(0, 500)}`);
-    throw new AIRequestError(friendly(response.status, provider), response.status);
+    const model = (body as { model?: unknown }).model;
+    throw new AIRequestError(friendly(response.status, provider, typeof model === "string" ? model : undefined), response.status);
   }
   return response.json();
 }

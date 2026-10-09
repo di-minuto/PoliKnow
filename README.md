@@ -284,7 +284,7 @@ Las claves de IA (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) solo se configuran en V
 |---|---|
 | Claude | `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY` (modelo por defecto `claude-haiku-5-5`) |
 | OpenAI | `AI_PROVIDER=openai`, `OPENAI_API_KEY` (modelo por defecto `gpt-5-mini`) |
-| Gemini (tiene capa gratuita) | `AI_PROVIDER=gemini`, `GEMINI_API_KEY` = clave de Google AI Studio (modelo por defecto `gemini-2.5-flash`) |
+| Gemini (tiene capa gratuita) | `AI_PROVIDER=gemini`, `GEMINI_API_KEY` = clave de Google AI Studio (modelo por defecto `gemini-3.5-flash`; no hace falta `AI_MODEL`) |
 
 Si una variable está mal escrita (por ejemplo, un proveedor que no existe o una URL incompleta), la
 app sigue funcionando sin IA, y la página `/estado` te dice qué corregir.

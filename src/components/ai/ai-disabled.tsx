@@ -18,9 +18,8 @@ export function AIDisabled({ reason, feature }: { reason?: string | null; featur
           <strong>OpenAI:</strong> <code>AI_PROVIDER=openai</code> y <code>OPENAI_API_KEY</code>.
         </li>
         <li>
-          <strong>Gratis con Gemini:</strong> <code>AI_PROVIDER=openai</code>, <code>OPENAI_API_KEY</code> = tu clave de Google AI
-          Studio, <code>AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai</code> y{" "}
-          <code>AI_MODEL=gemini-2.5-flash</code>.
+          <strong>Gratis con Gemini:</strong> <code>AI_PROVIDER=gemini</code> y <code>GEMINI_API_KEY</code> = tu clave de Google AI
+          Studio. Sin <code>AI_MODEL</code> usa el modelo por defecto.
         </li>
       </ul>
       <p className="text-muted">La clave se queda en el servidor; nunca llega al navegador ni al repositorio.</p>

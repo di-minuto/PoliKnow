@@ -53,7 +53,7 @@ describe("configuración de IA", () => {
 
   it("Gemini solo necesita su clave", () => {
     const gemini = resolveAIProvider(getServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: "k" }));
-    expect(gemini).toMatchObject({ enabled: true, name: "gemini", model: "gemini-2.5-flash" });
+    expect(gemini).toMatchObject({ enabled: true, name: "gemini", model: "gemini-3.5-flash" });
     expect(resolveAIProvider(getServerEnv({ AI_PROVIDER: "gemini", OPENAI_API_KEY: "k" })).enabled).toBe(true);
     expect(() => resolveAIProvider(getServerEnv({ AI_PROVIDER: "gemini" }))).toThrow(/GEMINI_API_KEY/);
   });
