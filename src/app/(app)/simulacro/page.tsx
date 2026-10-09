@@ -6,7 +6,8 @@ import { ExamBuilder } from "@/components/practice/exam-builder";
 import { cardClass } from "@/components/ui/styles";
 import { loadLibraryOptions } from "@/server/library-options";
 import { listAssessmentTopics, listAssessments } from "@/server/repositories/academic";
-import { countExamQuestions, listOfficialExams, listQuestionTypes } from "@/server/repositories/questions";
+import { aiInfo } from "@/server/ai";
+import { countExamQuestions, listOfficialExams, listQuestionTypes, questionAvailability } from "@/server/repositories/questions";
 
 export const metadata: Metadata = { title: "Simulacro de examen" };
 
@@ -14,11 +15,12 @@ const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : u
 
 export default async function SimulationPage({ searchParams }: PageProps<"/simulacro">) {
   const params = await searchParams;
-  const [library, assessments, questionTypes, exams] = await Promise.all([
+  const [library, assessments, questionTypes, exams, available] = await Promise.all([
     loadLibraryOptions(),
     listAssessments(),
     listQuestionTypes(),
     listOfficialExams(),
+    questionAvailability(),
   ]);
   const active = new Set(library.subjects.map((s) => s.id));
   const visible = assessments.filter((a) => active.has(a.subjectId) && a.status !== "cancelled");
@@ -58,6 +60,8 @@ export default async function SimulationPage({ searchParams }: PageProps<"/simul
                   topics: links.filter((l) => l.assessmentId === a.id).map((l) => ({ topicId: l.topicId, weight: l.weight })),
                 })),
                 questionTypes,
+                available,
+                aiEnabled: aiInfo().enabled,
               }}
               defaults={{ subjectId: one(params.asignatura), assessmentId: one(params.parcial) }}
             />

@@ -53,7 +53,14 @@ export async function createSimulationAction(_prev: ActionState, formData: FormD
       strategy: "random",
       topicWeights: weighted.length ? new Map(weighted.map((t) => [t.topicId, t.weight / total])) : undefined,
     });
-    if (chosen.length === 0) return failure("No hay preguntas con esos filtros. Prueba con más temas o menos restricciones.");
+    if (chosen.length === 0) {
+      const any = raw.length > 0 || (await repo.loadCandidates({ subjectId: config.subjectId })).length > 0;
+      return failure(
+        any
+          ? "No hay preguntas con esos filtros. Prueba con más temas o menos restricciones."
+          : "Esta asignatura aún no tiene preguntas aprobadas. Genéralas con IA, impórtalas o escríbelas en Preguntas.",
+      );
+    }
     id = await repo.createAttempt({
       mode: "exam_simulation",
       subjectId: config.subjectId,

@@ -49,6 +49,13 @@ test("simulacro y examen oficial", async ({ page }) => {
     await expect(page.locator("summary").getByText(name, { exact: true })).toBeVisible();
   }
 
+  // Sin preguntas: el simulacro explica cómo conseguirlas en vez de fallar al empezar
+  await page.goto("/simulacro");
+  const empty = page.getByRole("status").filter({ hasText: "CPA aún no tiene preguntas para un simulacro." });
+  await expect(empty).toBeVisible();
+  await expect(empty.getByRole("link", { name: "Importarlas (JSON)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Empezar simulacro" })).toBeDisabled();
+
   // Preguntas propias y un examen oficial
   async function importJson(json: unknown, count: number) {
     await page.goto("/preguntas/importar");

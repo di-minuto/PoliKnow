@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Loader2, Timer } from "lucide-react";
 import { Field } from "@/components/ui/field";
@@ -20,7 +21,50 @@ export type ExamBuilderOptions = {
     topics: { topicId: string; weight: number }[];
   }[];
   questionTypes: { code: string; label: string }[];
+  /** Preguntas por asignatura: listas (aprobadas) y por revisar. */
+  available: Record<string, { ready: number; pending: number }>;
+  aiEnabled: boolean;
 };
+
+/** Qué hacer cuando la asignatura aún no tiene preguntas con las que montar un simulacro. */
+function NoQuestions({ subjectId, label, pending, aiEnabled }: { subjectId: string; label: string; pending: number; aiEnabled: boolean }) {
+  const link = "font-medium text-primary underline";
+  return (
+    <div role="status" className="flex flex-col gap-2 rounded-lg bg-warning-soft px-3 py-3 text-sm">
+      <p className="font-medium">{label} aún no tiene preguntas para un simulacro.</p>
+      {pending > 0 ? (
+        <p>
+          Tienes {pending} {pending === 1 ? "pregunta" : "preguntas"} por revisar: apruébalas en{" "}
+          <Link href={`/preguntas?asignatura=${subjectId}&estado=revisar`} className={link}>
+            Preguntas
+          </Link>{" "}
+          y podrás usarlas.
+        </p>
+      ) : (
+        <p>El simulacro se monta con tu banco de preguntas, no con los apuntes directamente. Puedes:</p>
+      )}
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        {aiEnabled && (
+          <li>
+            <Link href={`/preguntas/generar?asignatura=${subjectId}`} className={link}>
+              Generarlas con IA desde tus apuntes
+            </Link>
+          </li>
+        )}
+        <li>
+          <Link href={`/preguntas/importar?asignatura=${subjectId}`} className={link}>
+            Importarlas (JSON)
+          </Link>
+        </li>
+        <li>
+          <Link href={`/preguntas/nueva?asignatura=${subjectId}`} className={link}>
+            Escribir una
+          </Link>
+        </li>
+      </ul>
+    </div>
+  );
+}
 
 function ErrorBox({ error }: { error?: string | null }) {
   return error ? (
@@ -42,7 +86,11 @@ export function ExamBuilder({
 }) {
   const [state, action, pending] = useActionState(createSimulationAction, initialActionState);
   const initialAssessment = options.assessments.find((a) => a.id === defaults.assessmentId);
-  const [subjectId, setSubjectId] = useState(initialAssessment?.subjectId ?? defaults.subjectId ?? options.subjects[0]?.id ?? "");
+  // Sin asignatura indicada, se empieza por la primera que tenga preguntas.
+  const withQuestions = options.subjects.find((s) => (options.available[s.id]?.ready ?? 0) > 0);
+  const [subjectId, setSubjectId] = useState(
+    initialAssessment?.subjectId ?? defaults.subjectId ?? withQuestions?.id ?? options.subjects[0]?.id ?? "",
+  );
   const [assessmentId, setAssessmentId] = useState(initialAssessment?.id ?? "");
   const [weights, setWeights] = useState<Record<string, string>>(() =>
     Object.fromEntries((initialAssessment?.topics ?? []).map((t) => [t.topicId, String(t.weight)])),
@@ -52,6 +100,8 @@ export function ExamBuilder({
   const topics = options.topics.filter((t) => t.subjectId === subjectId);
   const assessments = options.assessments.filter((a) => a.subjectId === subjectId);
   const checked = Object.keys(weights);
+  const availability = options.available[subjectId] ?? { ready: 0, pending: 0 };
+  const subjectLabel = options.subjects.find((s) => s.id === subjectId)?.label.split(" · ")[0] ?? "Esta asignatura";
 
   function chooseAssessment(id: string) {
     setAssessmentId(id);
@@ -93,7 +143,15 @@ export function ExamBuilder({
         </Field>
       </div>
 
-      <fieldset className="flex flex-col gap-1">
+      {availability.ready === 0 ? (
+        <NoQuestions subjectId={subjectId} label={subjectLabel} pending={availability.pending} aiEnabled={options.aiEnabled} />
+      ) : (
+        <p className="text-sm text-muted">
+          {availability.ready} {availability.ready === 1 ? "pregunta disponible" : "preguntas disponibles"} en {subjectLabel}.
+        </p>
+      )}
+
+      <fieldset className="flex min-w-0 flex-col gap-1">
         <legend className="mb-1 text-sm font-medium">Temas y ponderación</legend>
         {topics.length === 0 ? (
           <p className="text-sm text-muted">Sin temas: entrarán todas las preguntas de la asignatura.</p>
@@ -218,7 +276,7 @@ export function ExamBuilder({
 
       <ErrorBox error={state.error} />
       <div>
-        <button type="submit" disabled={pending} className={buttonClass.primary}>
+        <button type="submit" disabled={pending || availability.ready === 0} className={buttonClass.primary}>
           {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Timer className="size-4" aria-hidden />}
           Empezar simulacro
         </button>

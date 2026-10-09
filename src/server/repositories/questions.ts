@@ -160,6 +160,24 @@ export async function countQuestions(subjectId: string): Promise<number> {
   return count ?? 0;
 }
 
+export type QuestionAvailability = { ready: number; pending: number };
+
+/** Por asignatura: preguntas listas para tests (aprobadas) y por revisar. Sin archivadas ni rechazadas. */
+export async function questionAvailability(): Promise<Record<string, QuestionAvailability>> {
+  const db = await createClient();
+  const rows = check<{ subject_id: string; review_status: string }[]>(
+    "Contar preguntas por asignatura",
+    await db.from("questions").select("subject_id, review_status").eq("archived", false).neq("review_status", "rejected").limit(20000),
+  );
+  const out: Record<string, QuestionAvailability> = {};
+  for (const r of rows) {
+    const entry = (out[r.subject_id] ??= { ready: 0, pending: 0 });
+    if (r.review_status === "approved") entry.ready++;
+    else entry.pending++;
+  }
+  return out;
+}
+
 export async function listQuestionTypes() {
   const db = await createClient();
   const rows = check<{ code: string; label: string; auto_gradable: boolean }[]>(
