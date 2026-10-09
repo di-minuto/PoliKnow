@@ -19,6 +19,8 @@ export const getProfile = cache(async (): Promise<Profile> => {
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw new Error(`No se pudo cargar el perfil: ${error.message}`);
+  // Cuentas creadas antes de instalar las tablas no tienen perfil: se crea ahora.
+  if (!data) await supabase.from("profiles").insert({ id: user.id }).select("id").maybeSingle();
 
   return {
     id: user.id,
