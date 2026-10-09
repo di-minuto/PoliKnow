@@ -11,7 +11,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Arquitectura, proyecto, base de datos, autenticación | ✅ Hecha |
-| 2 | Asignaturas, parciales y temas | Pendiente |
+| 2 | Asignaturas, parciales y temas | ✅ Hecha |
 | 3 | Biblioteca y subida de documentos | Pendiente |
 | 4 | Banco de preguntas | Pendiente |
 | 5 | Tests | Pendiente |
@@ -39,6 +39,23 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 - **Manifest PWA** e iconos (instalable; el modo offline llega en la Fase 10).
 - **Tests** (Vitest): migraciones y políticas RLS sobre Postgres real (PGlite), reglas de
   procedencia de preguntas, utilidades de fechas y capa de IA.
+
+### Fase 2: qué incluye
+
+- **Cursos y asignaturas** (`/asignaturas`): siglas, color, dificultad percibida e importancia;
+  la lista muestra el próximo examen de cada asignatura con cuenta atrás.
+- **Temas y prácticas** (`/asignaturas/[id]`): subtemas ilimitados, horas estimadas,
+  reordenar con flechas, editar y borrar.
+- **Evaluaciones** (parciales, final, examen de prácticas...): fecha y hora en tu zona horaria,
+  duración, importancia, dificultad, peso en la nota y estado.
+- **Temas por evaluación** con **pesos** (`/asignaturas/[id]/evaluaciones/[id]`): el porcentaje
+  de cada tema se calcula solo; el mismo tema puede entrar en el parcial y en el final.
+- **Tiempo disponible** por día de la semana y **días sin estudio** (`/ajustes`), que usará el
+  planificador de la Fase 7.
+- **Hoy** muestra los próximos exámenes con los días que faltan.
+- Lógica pura en `src/domain/academic` (árbol de temas, reordenación, pesos, validación con
+  zod), repositorios en `src/server/repositories` y Server Actions en `src/server/actions`.
+- Test **e2e en móvil** (Playwright) que recorre todo lo anterior contra una base de datos real.
 
 ## Puesta en marcha
 
@@ -77,6 +94,8 @@ Las claves de IA (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) solo se configuran en V
 | `npm run build` | Compilación de producción |
 | `npm run check` | Tipos + lint + tests |
 | `npm test` | Tests (Vitest) |
+| `npm run test:e2e` | Tests de extremo a extremo (Playwright) contra Supabase local |
+| `npm run stack:local` | Supabase local mínimo sin Docker Hub (Postgres + PostgREST + auth simulada) |
 | `npm run db:push` | Aplica las migraciones al proyecto enlazado |
 | `npm run db:types` | Regenera `src/types/database.ts` desde Supabase |
 
@@ -93,8 +112,21 @@ src/
   proxy.ts        refresco de sesión y protección de rutas
 supabase/migrations/   SQL versionado
 tests/db/              tests de migraciones y RLS (PGlite)
+tests/e2e/             tests de extremo a extremo (Playwright, móvil)
+scripts/local-stack/   Supabase local mínimo para los tests e2e
 docs/DISENO.md         documento de diseño
 ```
 
 Reglas de arquitectura: `domain/` no importa Next, Supabase ni IA; solo `server/` y
 `lib/supabase` hablan con la base de datos; las claves solo existen en el servidor.
+
+## Tests de extremo a extremo
+
+Necesitan un Supabase local. Lo normal es `npx supabase start`; si Docker Hub no está
+disponible, `npm run stack:local` levanta una imitación mínima (Postgres 16 local,
+PostgREST en Docker y una pasarela de autenticación en Node; solo para tests).
+
+```bash
+npm run stack:local
+E2E_SUPABASE_KEY=cualquiera npm run test:e2e
+```

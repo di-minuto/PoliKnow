@@ -160,3 +160,54 @@ describe("integridad de las preguntas", () => {
     expect(found.rows).toHaveLength(1);
   });
 });
+
+describe("jerarquía académica (Fase 2)", () => {
+  it("borrar un tema borra sus subtemas y lo quita de las evaluaciones", async () => {
+    const subjectId = await createSubject(USER_A);
+    const remaining = await asUser(USER_A, async () => {
+      const parent = await db.query<{ id: string }>(
+        `insert into topics (subject_id, name) values ($1, 'Tema 1') returning id`,
+        [subjectId],
+      );
+      const child = await db.query<{ id: string }>(
+        `insert into topics (subject_id, parent_id, name) values ($1, $2, 'Tema 1.1') returning id`,
+        [subjectId, parent.rows[0].id],
+      );
+      const assessment = await db.query<{ id: string }>(
+        `insert into assessments (subject_id, name) values ($1, 'Parcial 1') returning id`,
+        [subjectId],
+      );
+      await db.query(
+        `insert into assessment_topics (assessment_id, topic_id, weight) values ($1, $2, 2), ($1, $3, 1)`,
+        [assessment.rows[0].id, parent.rows[0].id, child.rows[0].id],
+      );
+      await db.query(`delete from topics where id = $1`, [parent.rows[0].id]);
+      const topics = await db.query(`select id from topics where subject_id = $1`, [subjectId]);
+      const links = await db.query(`select * from assessment_topics where assessment_id = $1`, [assessment.rows[0].id]);
+      return { topics: topics.rows.length, links: links.rows.length };
+    });
+    expect(remaining).toEqual({ topics: 0, links: 0 });
+  });
+
+  it("la disponibilidad es única por día de la semana y se puede sobrescribir", async () => {
+    const minutes = await asUser(USER_A, async () => {
+      await db.query(`insert into availability_rules (user_id, weekday, minutes) values ($1, 1, 120)`, [USER_A]);
+      await db.query(
+        `insert into availability_rules (user_id, weekday, minutes) values ($1, 1, 180)
+         on conflict (user_id, weekday) do update set minutes = excluded.minutes`,
+        [USER_A],
+      );
+      return db.query<{ minutes: number }>(`select minutes from availability_rules where weekday = 1`);
+    });
+    expect(minutes.rows).toEqual([{ minutes: 180 }]);
+  });
+
+  it("solo existen los tipos de evaluación del catálogo", async () => {
+    const subjectId = await createSubject(USER_A);
+    await expect(
+      asUser(USER_A, () =>
+        db.query(`insert into assessments (subject_id, name, assessment_type) values ($1, 'X', 'inventado')`, [subjectId]),
+      ),
+    ).rejects.toThrow(/foreign key/);
+  });
+});
