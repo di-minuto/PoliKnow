@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, Flag, Minus, Trash2, X } from "lucide-react";
+import { Check, Flag, Hourglass, Minus, Trash2, X } from "lucide-react";
+import { ExamRunner } from "@/components/practice/exam-runner";
 import { describeResponse } from "@/components/practice/response-view";
 import { QuickModeButton } from "@/components/practice/test-builder";
 import { TestRunner } from "@/components/practice/test-runner";
-import type { RunnerItem, RunnerQuestion } from "@/components/practice/types";
+import type { ExamItem, RunnerItem, RunnerQuestion } from "@/components/practice/types";
 import { QuestionBodyView } from "@/components/questions/question-body-view";
 import { RichText } from "@/components/questions/rich-text";
 import { SourceBadge } from "@/components/questions/source-badge";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { buttonClass, cardClass } from "@/components/ui/styles";
+import { isExamMode, studyRecommendations } from "@/domain/practice/exam";
 import { outcomeResult } from "@/domain/practice/scoring";
-import { SELF_GRADE_LABELS, TEST_MODE_LABELS } from "@/domain/practice/types";
+import { SELF_GRADE_LABELS, TEST_MODE_LABELS, type SelfGrade } from "@/domain/practice/types";
 import { bodyKind } from "@/domain/questions/body";
 import type { Question } from "@/domain/questions/types";
 import { formatDateTime } from "@/lib/dates";
+import { selfGradeExamItemAction } from "@/server/actions/exams-practice";
 import { deleteAttemptAction } from "@/server/actions/practice";
 import { getProfile } from "@/server/profile";
 import { loadQuestionOptions } from "@/server/question-options";
@@ -32,7 +35,8 @@ function duration(seconds: number | null): string {
   if (!seconds) return "–";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : m > 0 ? `${m} min ${s} s` : `${s} s`;
+  if (m >= 60) return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
+  return m > 0 ? `${m} min${s ? ` ${s} s` : ""}` : `${s} s`;
 }
 
 /** Contenido que necesita el navegador para responder, sin la solución. */
@@ -50,10 +54,11 @@ function runnerContent(q: Question): RunnerQuestion["content"] {
   }
 }
 
-type Result = "correct" | "incorrect" | "partial" | "unanswered";
+type Result = "correct" | "incorrect" | "partial" | "unanswered" | "pending";
 function itemResult(item: ItemRow): Result {
   const grade = item.user_answer?.grade;
   if (!item.answered_at || !grade) return "unanswered";
+  if (grade === "self_assessed" && !item.user_answer?.selfGrade) return "pending";
   return outcomeResult(grade, item.user_answer?.selfGrade ?? null);
 }
 
@@ -62,7 +67,10 @@ const RESULT_VIEW: Record<Result, { label: string; className: string; icon: type
   incorrect: { label: "Incorrecta", className: "bg-danger-soft text-danger", icon: X },
   partial: { label: "Regular", className: "bg-warning-soft text-warning", icon: Minus },
   unanswered: { label: "Sin responder", className: "bg-border/60 text-muted", icon: Minus },
+  pending: { label: "Por autoevaluar", className: "bg-primary-soft text-primary", icon: Hourglass },
 };
+
+const SELF_GRADES: SelfGrade[] = ["wrong", "partial", "right"];
 
 export default async function AttemptPage({ params }: PageProps<"/tests/[attemptId]">) {
   const { attemptId } = await params;
@@ -89,7 +97,13 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
       ? `${examTitle.get(q.officialExamId) ?? "Examen"}${q.officialPosition ? ` · nº ${q.officialPosition}` : ""}`
       : q.aiModel;
 
-  const title = `${TEST_MODE_LABELS[attempt.mode]}${subject ? ` · ${subject.label.split(" · ")[0]}` : ""}`;
+  const exam = isExamMode(attempt.mode);
+  const config = attempt.config as { penalty?: number; allowBack?: boolean };
+  const penalty = Number(config.penalty ?? 0);
+  const officialTitle = attempt.official_exam_id ? examTitle.get(attempt.official_exam_id) : undefined;
+  const title = officialTitle
+    ? officialTitle
+    : `${TEST_MODE_LABELS[attempt.mode]}${subject ? ` · ${subject.label.split(" · ")[0]}` : ""}`;
   const back = (
     <Link href="/tests" className="text-sm text-muted hover:underline">
       ← Tests
@@ -105,6 +119,54 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
     </form>
   );
 
+  const runnerQuestion = (q: Question): RunnerQuestion => ({
+    id: q.id,
+    stem: q.stem,
+    questionType: q.questionType,
+    typeLabel: typeLabel.get(q.questionType) ?? q.questionType,
+    content: runnerContent(q),
+    sourceType: q.sourceType,
+    sourceDetail: sourceDetail(q),
+    topicName: q.topicId ? (topicName.get(q.topicId) ?? null) : null,
+  });
+
+  if (attempt.status === "in_progress" && exam) {
+    const examItems: ExamItem[] = present.map((item) => ({
+      itemId: item.id,
+      position: item.position,
+      flagged: item.flagged,
+      points: Number(item.points),
+      // En un simulacro no se dice ni el tema ni la solución.
+      question: { ...runnerQuestion(byId.get(item.question_id)!), topicName: null },
+      response: item.answered_at ? (item.user_answer?.response ?? null) : null,
+    }));
+    return (
+      <>
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            {back}
+            <h1 className="mt-2 text-2xl font-bold">{title}</h1>
+          </div>
+        </header>
+        {examItems.length === 0 ? (
+          <div className={`${cardClass} flex flex-col items-start gap-3 p-5 text-muted`}>
+            Las preguntas de este examen se han borrado.
+            {deleteForm}
+          </div>
+        ) : (
+          <ExamRunner
+            attemptId={attempt.id}
+            items={examItems}
+            startedAt={attempt.started_at}
+            timeLimitSeconds={attempt.time_limit_seconds}
+            allowBack={config.allowBack !== false}
+            penalty={penalty}
+          />
+        )}
+      </>
+    );
+  }
+
   if (attempt.status === "in_progress") {
     const runnerItems: RunnerItem[] = present.map((item) => {
       const q = byId.get(item.question_id)!;
@@ -113,16 +175,7 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
         itemId: item.id,
         position: item.position,
         flagged: item.flagged,
-        question: {
-          id: q.id,
-          stem: q.stem,
-          questionType: q.questionType,
-          typeLabel: typeLabel.get(q.questionType) ?? q.questionType,
-          content: runnerContent(q),
-          sourceType: q.sourceType,
-          sourceDetail: sourceDetail(q),
-          topicName: q.topicId ? (topicName.get(q.topicId) ?? null) : null,
-        },
+        question: runnerQuestion(q),
         done:
           item.answered_at && grade
             ? {
@@ -162,12 +215,31 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
     incorrect?: number;
     partial?: number;
     unanswered?: number;
+    pending?: number;
+    penaltyLost?: number;
     byTopic?: { topicId: string | null; grade: number; count: number }[];
   };
   const grade = Number(attempt.grade ?? 0);
   const byTopic = [...(summary.byTopic ?? [])].sort((a, b) => a.grade - b.grade);
   const weak = byTopic.filter((t) => t.topicId && t.grade < 5);
   const failed = present.filter((i) => ["incorrect", "partial"].includes(itemResult(i))).length;
+  const pending = summary.pending ?? 0;
+  const tips = exam
+    ? studyRecommendations({
+        grade,
+        total: present.length,
+        incorrect: summary.incorrect ?? 0,
+        unanswered: summary.unanswered ?? 0,
+        pending,
+        penaltyLost: summary.penaltyLost ?? 0,
+        maxScore: Number(attempt.max_score ?? 0),
+        timeUsedSeconds: attempt.time_used_seconds,
+        timeLimitSeconds: attempt.time_limit_seconds,
+        byTopic: byTopic
+          .filter((t) => t.topicId)
+          .map((t) => ({ name: topicName.get(t.topicId!) ?? "Tema", grade: t.grade, count: t.count })),
+      })
+    : [];
 
   return (
     <>
@@ -186,6 +258,11 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
             {fmt(grade)}
           </p>
           <p className="text-sm text-muted">sobre 10</p>
+          {exam && (
+            <p className="mt-1 text-sm">
+              {fmt(attempt.score, 2)} / {fmt(attempt.max_score, 2)} puntos
+            </p>
+          )}
         </div>
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
           {[
@@ -193,7 +270,13 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
             ["Incorrectas", summary.incorrect ?? 0],
             ["Regular", summary.partial ?? 0],
             ["Sin responder", summary.unanswered ?? 0],
-            ["Tiempo", duration(attempt.time_used_seconds)],
+            ...(pending > 0 ? [["Por autoevaluar", pending]] : []),
+            [
+              "Tiempo",
+              attempt.time_limit_seconds
+                ? `${duration(attempt.time_used_seconds)} de ${duration(attempt.time_limit_seconds)}`
+                : duration(attempt.time_used_seconds),
+            ],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg bg-background px-3 py-2">
               <dt className="text-muted">{label}</dt>
@@ -201,6 +284,13 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
             </div>
           ))}
         </dl>
+        {exam && (
+          <p className="text-sm text-muted sm:col-span-2">
+            {penalty > 0
+              ? `Cada fallo restaba ${fmt(penalty, 2)} de la pregunta: has perdido ${fmt(summary.penaltyLost ?? 0, 2)} puntos por fallos.`
+              : "Sin penalización por fallos."}
+          </p>
+        )}
       </section>
 
       {byTopic.length > 0 && (
@@ -222,12 +312,19 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
         </section>
       )}
 
-      {(weak.length > 0 || failed > 0) && (
+      {(weak.length > 0 || failed > 0 || tips.length > 0) && (
         <section aria-labelledby="recomendaciones" className={`${cardClass} mb-6 flex flex-col gap-3 p-5`}>
           <h2 id="recomendaciones" className="text-lg font-semibold">
-            Qué repasar
+            {exam ? "Recomendaciones de estudio" : "Qué repasar"}
           </h2>
-          {weak.length > 0 && (
+          {tips.length > 0 && (
+            <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm">
+              {tips.map((tip) => (
+                <li key={tip}>{tip}</li>
+              ))}
+            </ul>
+          )}
+          {weak.length > 0 && !exam && (
             <p className="text-sm">
               Flojea{weak.length > 1 ? "n" : ""}:{" "}
               {weak.map((t, i) => (
@@ -259,8 +356,14 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
             const result = RESULT_VIEW[itemResult(item)];
             const Icon = result.icon;
             const selfGrade = item.user_answer?.selfGrade;
+            const isPending = itemResult(item) === "pending";
             return (
-              <li key={item.id} className={`${cardClass} flex flex-col gap-3 p-5`} aria-label={`Pregunta ${n + 1}`}>
+              <li
+                key={item.id}
+                id={`item-${item.id}`}
+                className={`${cardClass} flex scroll-mt-4 flex-col gap-3 p-5`}
+                aria-label={`Pregunta ${n + 1}`}
+              >
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
                   <span className="font-semibold text-foreground">{n + 1}.</span>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${result.className}`}>
@@ -269,6 +372,11 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
                   </span>
                   <SourceBadge source={q.sourceType} detail={sourceDetail(q)} />
                   {q.topicId && <span>{topicName.get(q.topicId)}</span>}
+                  {exam && item.score !== null && (
+                    <span>
+                      · {fmt(item.score, 2)} / {fmt(item.points, 2)} ptos.
+                    </span>
+                  )}
                   {item.flagged && (
                     <span className="inline-flex items-center gap-1 text-warning">
                       <Flag className="size-3.5" aria-hidden /> Marcada
@@ -293,6 +401,19 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
                     <p className="mb-1 font-medium">Explicación</p>
                     <RichText text={q.explanation} />
                   </div>
+                )}
+                {isPending && (
+                  <form action={selfGradeExamItemAction} className="flex flex-col gap-2 rounded-lg bg-primary-soft p-3">
+                    <input type="hidden" name="itemId" value={item.id} />
+                    <p className="text-sm font-medium">¿Cómo te ha salido comparado con la solución?</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {SELF_GRADES.map((g) => (
+                        <button key={g} type="submit" name="selfGrade" value={g} className={buttonClass.secondary}>
+                          {SELF_GRADE_LABELS[g]}
+                        </button>
+                      ))}
+                    </div>
+                  </form>
                 )}
               </li>
             );

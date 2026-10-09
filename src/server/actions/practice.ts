@@ -6,18 +6,16 @@ import { z } from "zod";
 import { descendantIds, topicShares } from "@/domain/academic/logic";
 import { firstError } from "@/domain/academic/schemas";
 import { EMPTY_MESSAGES, readTestConfigForm, testConfigInput, type TestConfig } from "@/domain/practice/config";
-import { nextTopicReview, topicMastery } from "@/domain/practice/mastery";
-import { itemFraction, outcomeResult, scoreAttempt, srsRating } from "@/domain/practice/scoring";
+import { isExamMode, usedSeconds } from "@/domain/practice/exam";
 import { seededRandom, selectQuestions, shuffle, type SelectOptions } from "@/domain/practice/selection";
 import type { Candidate, SelfGrade } from "@/domain/practice/types";
-import { bodySchema } from "@/domain/questions/body";
-import { gradeResponse, type Grade, type Response } from "@/domain/questions/grading";
-import { NEW_CARD, review } from "@/domain/srs/srs";
+import type { Grade, Response } from "@/domain/questions/grading";
 import { failure, type ActionState } from "@/lib/action-state";
+import { gradeAgainst, gradedItem, penaltyOf, recordReview, refreshTopicProgress, scoreData, summaryOf } from "@/server/attempts";
 import { getCurrentUser } from "@/server/auth";
 import { listAssessmentTopics, listAssessments, listTopics } from "@/server/repositories/academic";
 import * as repo from "@/server/repositories/practice";
-import { getQuestion } from "@/server/repositories/questions";
+import { getQuestion, getQuestionsByIds } from "@/server/repositories/questions";
 
 /*
  * Tests: generar, responder (con corrección en el servidor, que es quien
@@ -165,35 +163,22 @@ export async function answerItemAction(raw: unknown): Promise<{ ok: true; feedba
     const question = await getQuestion(item.question_id);
     if (!question) return { ok: false, error: "La pregunta se ha borrado." };
 
-    const body = bodySchema(question.questionType).safeParse({ content: question.content, answer: question.answer });
-    if (!body.success) return { ok: false, error: "La pregunta tiene datos incompletos; edítala." };
-    const grade = gradeResponse(question.questionType, body.data, input.data.response as Response);
+    if (isExamMode(item.attempts.mode)) return { ok: false, error: "En un simulacro no se corrige hasta entregar." };
+    const grade = gradeAgainst(question, input.data.response as Response);
+    if (!grade) return { ok: false, error: "La pregunta tiene datos incompletos; edítala." };
     const selfGrade = input.data.selfGrade;
     const feedback = { grade, selfGrade, answer: question.answer, explanation: question.explanation };
     if (grade === "self_assessed" && !selfGrade) return { ok: true, feedback: { ...feedback, needsSelfGrade: true } };
 
-    const points = Number(item.points);
-    const fraction = itemFraction({ topicId: null, points, grade, selfGrade }, 0);
-    const result = outcomeResult(grade, selfGrade);
+    const graded = gradedItem({ ...item, user_answer: { response: input.data.response } }, grade, selfGrade, 0);
     await repo.saveItemAnswer(item.id, {
-      userAnswer: { response: input.data.response, selfGrade, grade },
-      isCorrect: result === "partial" ? null : result === "correct",
-      score: fraction * points,
-      gradingMethod: grade === "self_assessed" ? "self" : "auto",
+      userAnswer: graded.userAnswer,
+      isCorrect: graded.isCorrect,
+      score: graded.score ?? 0,
+      gradingMethod: graded.gradingMethod,
       timeSpentSeconds: input.data.timeSpentSeconds,
     });
-
-    // Repaso espaciado y contadores de la pregunta.
-    const now = new Date();
-    const stats = await repo.getQuestionStats(question.id);
-    await repo.saveQuestionStats(user.id, question.id, {
-      timesAnswered: (stats?.timesAnswered ?? 0) + 1,
-      timesCorrect: (stats?.timesCorrect ?? 0) + (result === "correct" ? 1 : 0),
-      timesIncorrect: (stats?.timesIncorrect ?? 0) + (result === "incorrect" ? 1 : 0),
-      lastResult: result,
-      lastAnsweredAt: now.toISOString(),
-      card: review(stats?.card ?? NEW_CARD, srsRating(grade, selfGrade), now, question.difficulty),
-    });
+    await recordReview(user.id, question, grade, selfGrade, new Date());
     return { ok: true, feedback: { ...feedback, needsSelfGrade: false } };
   } catch (error) {
     console.error(error);
@@ -214,44 +199,31 @@ export async function finishAttemptAction(formData: FormData): Promise<void> {
   const data = await repo.getAttempt(attemptId);
   if (!data) redirect("/tests");
   if (data.attempt.status === "in_progress") {
-    const questions = await repo.loadCandidates({ questionIds: data.items.map((i) => i.question_id) });
-    const topicOf = new Map(questions.map((q) => [q.id, q.topicId]));
-    const outcomes = data.items.map((i) => ({
-      topicId: topicOf.get(i.question_id) ?? null,
-      points: Number(i.points),
-      grade: i.answered_at ? (i.user_answer?.grade ?? null) : null,
-      selfGrade: i.user_answer?.selfGrade ?? null,
-    }));
-    const penalty = Number((data.attempt.config as { penalty?: number }).penalty ?? 0);
-    const score = scoreAttempt(outcomes, penalty);
     const now = new Date();
+    // Simulacro: se corrige todo al entregar. Las de desarrollo quedan para autoevaluar.
+    if (isExamMode(data.attempt.mode)) {
+      const answered = data.items.filter((i) => i.answered_at && i.user_answer?.response != null);
+      const questions = new Map((await getQuestionsByIds(answered.map((i) => i.question_id))).map((q) => [q.id, q]));
+      const penalty = penaltyOf(data.attempt);
+      for (const item of answered) {
+        const question = questions.get(item.question_id);
+        const grade = question ? gradeAgainst(question, item.user_answer!.response as Response) : null;
+        if (!question || !grade) continue;
+        const graded = gradedItem(item, grade, null, penalty);
+        await repo.gradeItem(item.id, graded);
+        item.user_answer = graded.userAnswer as repo.ItemRow["user_answer"];
+        if (grade !== "self_assessed") await recordReview(user.id, question, grade, null, now);
+      }
+    }
+    const { score, topicIds } = await scoreData(data);
     await repo.finishAttempt(attemptId, {
       score: score.score,
       maxScore: score.maxScore,
       grade: score.grade,
-      timeUsedSeconds: Math.round((now.getTime() - new Date(data.attempt.started_at).getTime()) / 1000),
-      summary: {
-        correct: score.correct,
-        incorrect: score.incorrect,
-        partial: score.partial,
-        unanswered: score.unanswered,
-        byTopic: score.byTopic,
-      },
+      timeUsedSeconds: usedSeconds(data.attempt.started_at, data.attempt.time_limit_seconds, now),
+      summary: summaryOf(score),
     });
-
-    // Dominio de cada tema tocado, con todas sus preguntas.
-    const topicIds = [...new Set(outcomes.map((o) => o.topicId).filter((t): t is string => Boolean(t)))];
-    if (topicIds.length) {
-      const all = await repo.loadCandidates({ topicIds });
-      for (const topicId of topicIds) {
-        const stats = all.filter((c) => c.topicId === topicId).map((c) => c.stats);
-        await repo.saveTopicProgress(user.id, topicId, {
-          mastery: topicMastery(stats, now),
-          lastReviewedAt: now.toISOString(),
-          nextReviewAt: nextTopicReview(stats),
-        });
-      }
-    }
+    await refreshTopicProgress(user.id, topicIds, now);
   }
   revalidatePath("/tests", "layout");
   redirect(`/tests/${attemptId}`);

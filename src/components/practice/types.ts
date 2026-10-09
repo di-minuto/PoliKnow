@@ -22,3 +22,13 @@ export type RunnerItem = {
   /** Respuesta ya dada (y su corrección). */
   done: { response: unknown; feedback: AnswerFeedback } | null;
 };
+
+/** Pregunta de un simulacro: solo la respuesta guardada, sin corrección. */
+export type ExamItem = {
+  itemId: string;
+  position: number;
+  flagged: boolean;
+  points: number;
+  question: RunnerQuestion;
+  response: unknown;
+};

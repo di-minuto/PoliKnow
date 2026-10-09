@@ -21,7 +21,7 @@ export default async function ExamsPage() {
     <>
       <PageHeader
         title="Exámenes"
-        subtitle="Exámenes oficiales de otros años con sus preguntas. El simulador llega en la Fase 6."
+        subtitle="Exámenes oficiales de otros años con sus preguntas. Entra en uno para hacerlo como examen real."
       />
 
       <div className="flex flex-col gap-6">

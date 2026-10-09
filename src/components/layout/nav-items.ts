@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   Sun,
+  Timer,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,6 +27,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/asignaturas", label: "Asignaturas", icon: GraduationCap, primary: true },
   { href: "/tests", label: "Tests", icon: ListChecks, primary: true },
   { href: "/plan", label: "Plan", icon: CalendarDays, primary: true },
+  { href: "/simulacro", label: "Simulacro", icon: Timer },
   { href: "/examenes", label: "Exámenes", icon: ClipboardCheck },
   { href: "/biblioteca", label: "Biblioteca", icon: Library },
   { href: "/preguntas", label: "Preguntas", icon: BookOpen },

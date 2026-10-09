@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Timer } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuickModes, TestBuilder } from "@/components/practice/test-builder";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -50,6 +51,17 @@ export default async function TestsPage({ searchParams }: PageProps<"/tests">) {
       ) : (
         <div className="flex flex-col gap-6">
           <QuickModes subjects={library.subjects} defaultSubjectId={subjectId} />
+
+          <Link
+            href={`/simulacro${subjectId ? `?asignatura=${subjectId}` : ""}`}
+            className={`${cardClass} flex items-center gap-3 p-4 hover:border-primary`}
+          >
+            <Timer className="size-5 shrink-0 text-primary" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">Simulacro de examen</span>
+              <span className="block text-sm text-muted">Con tiempo, sin soluciones hasta entregar y con penalización.</span>
+            </span>
+          </Link>
 
           <Disclosure summary="Test personalizado, por tema o por parcial" defaultOpen={Boolean(assessmentId || topicId)}>
             <TestBuilder

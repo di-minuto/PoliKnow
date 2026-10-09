@@ -140,10 +140,12 @@ export type AttemptRow = {
   mode: TestMode | "exam_simulation" | "official_exam";
   subject_id: string | null;
   assessment_id: string | null;
+  official_exam_id: string | null;
   config: Record<string, unknown>;
   status: "in_progress" | "finished" | "abandoned";
   started_at: string;
   finished_at: string | null;
+  time_limit_seconds: number | null;
   time_used_seconds: number | null;
   score: number | string | null;
   max_score: number | string | null;
@@ -152,7 +154,7 @@ export type AttemptRow = {
 };
 
 const ATTEMPT_COLUMNS =
-  "id, mode, subject_id, assessment_id, config, status, started_at, finished_at, time_used_seconds, score, max_score, grade, summary";
+  "id, mode, subject_id, assessment_id, official_exam_id, config, status, started_at, finished_at, time_limit_seconds, time_used_seconds, score, max_score, grade, summary";
 
 export type ItemRow = {
   id: string;
@@ -172,22 +174,38 @@ const ITEM_COLUMNS =
   "id, question_id, position, points, user_answer, is_correct, score, flagged, answered_at, time_spent_seconds, grading_method";
 
 export async function createAttempt(input: {
-  mode: TestMode;
+  mode: AttemptRow["mode"];
   subjectId: string | null;
   assessmentId: string | null;
+  officialExamId?: string | null;
+  timeLimitSeconds?: number | null;
   config: Record<string, unknown>;
   questionIds: string[];
+  /** Puntos de cada pregunta (por defecto 1). */
+  points?: number[];
 }): Promise<string> {
   const db = await createClient();
   const attempt = check<{ id: string }>(
     "Crear test",
     await db
       .from("attempts")
-      .insert({ mode: input.mode, subject_id: input.subjectId, assessment_id: input.assessmentId, config: input.config })
+      .insert({
+        mode: input.mode,
+        subject_id: input.subjectId,
+        assessment_id: input.assessmentId,
+        official_exam_id: input.officialExamId ?? null,
+        time_limit_seconds: input.timeLimitSeconds ?? null,
+        config: input.config,
+      })
       .select("id")
       .single(),
   );
-  const items = input.questionIds.map((question_id, i) => ({ attempt_id: attempt.id, question_id, position: i + 1, points: 1 }));
+  const items = input.questionIds.map((question_id, i) => ({
+    attempt_id: attempt.id,
+    question_id,
+    position: i + 1,
+    points: input.points?.[i] ?? 1,
+  }));
   const inserted = await db.from("attempt_items").insert(items);
   if (inserted.error) {
     await db.from("attempts").delete().eq("id", attempt.id);
@@ -209,10 +227,10 @@ export async function getAttempt(id: string): Promise<{ attempt: AttemptRow; ite
 
 export async function getItem(itemId: string) {
   const db = await createClient();
-  const rows = check<(ItemRow & { attempt_id: string; attempts: { status: AttemptRow["status"] } })[]>(
+  const rows = check<(ItemRow & { attempt_id: string; attempts: Pick<AttemptRow, "status" | "mode" | "started_at" | "time_limit_seconds" | "config"> })[]>(
     "Leer respuesta",
     // Relación muchos-a-uno: PostgREST devuelve un objeto (sin tipos generados, se indica a mano).
-    (await db.from("attempt_items").select(`${ITEM_COLUMNS}, attempt_id, attempts(status)`).eq("id", itemId).limit(1)) as never,
+    (await db.from("attempt_items").select(`${ITEM_COLUMNS}, attempt_id, attempts(status, mode, started_at, time_limit_seconds, config)`).eq("id", itemId).limit(1)) as never,
   );
   return rows[0] ?? null;
 }
@@ -245,6 +263,45 @@ export async function saveItemAnswer(
   );
 }
 
+/** Simulacro: guarda (o borra, con null) la respuesta sin corregirla; se puede cambiar hasta entregar. */
+export async function saveExamResponse(
+  itemId: string,
+  values: { response: unknown | null; timeSpentSeconds: number | null },
+): Promise<void> {
+  const db = await createClient();
+  check(
+    "Guardar respuesta",
+    await db
+      .from("attempt_items")
+      .update({
+        user_answer: values.response === null ? null : { response: values.response },
+        answered_at: values.response === null ? null : new Date().toISOString(),
+        time_spent_seconds: values.timeSpentSeconds,
+      })
+      .eq("id", itemId),
+  );
+}
+
+/** Corrección de una respuesta ya guardada (al entregar o al autoevaluar). */
+export async function gradeItem(
+  itemId: string,
+  values: { userAnswer: Record<string, unknown>; isCorrect: boolean | null; score: number | null; gradingMethod: "auto" | "self" },
+): Promise<void> {
+  const db = await createClient();
+  check(
+    "Corregir respuesta",
+    await db
+      .from("attempt_items")
+      .update({
+        user_answer: values.userAnswer,
+        is_correct: values.isCorrect,
+        score: values.score,
+        grading_method: values.gradingMethod,
+      })
+      .eq("id", itemId),
+  );
+}
+
 export async function setItemFlag(itemId: string, flagged: boolean): Promise<void> {
   const db = await createClient();
   check("Marcar pregunta", await db.from("attempt_items").update({ flagged }).eq("id", itemId));
@@ -270,6 +327,21 @@ export async function finishAttempt(
       })
       .eq("id", id)
       .eq("status", "in_progress"),
+  );
+}
+
+/** Recalcula la nota de un intento ya terminado (tras autoevaluar). */
+export async function updateAttemptScore(
+  id: string,
+  values: { score: number; maxScore: number; grade: number; summary: Record<string, unknown> },
+): Promise<void> {
+  const db = await createClient();
+  check(
+    "Actualizar nota",
+    await db
+      .from("attempts")
+      .update({ score: values.score, max_score: values.maxScore, grade: values.grade, summary: values.summary })
+      .eq("id", id),
   );
 }
 

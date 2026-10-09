@@ -66,9 +66,14 @@ export default async function AssessmentPage({ params }: Props) {
           {assessment.examAt ? ` · ${formatDateTime(assessment.examAt, profile.timezone)}` : " · sin fecha"}
           {assessment.durationMinutes ? ` · ${assessment.durationMinutes} min` : ""}
         </p>
-        <Link href={`/tests?asignatura=${subject.id}&parcial=${assessment.id}`} className={`${buttonClass.secondary} mt-3`}>
-          Hacer test de este parcial
-        </Link>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link href={`/tests?asignatura=${subject.id}&parcial=${assessment.id}`} className={buttonClass.secondary}>
+            Hacer test de este parcial
+          </Link>
+          <Link href={`/simulacro?parcial=${assessment.id}`} className={buttonClass.secondary}>
+            Simulacro de este parcial
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-col gap-8">

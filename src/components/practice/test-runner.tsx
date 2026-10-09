@@ -12,18 +12,8 @@ import { bodyKind, optionLetter } from "@/domain/questions/body";
 import type { Response } from "@/domain/questions/grading";
 import type { Question } from "@/domain/questions/types";
 import { answerItemAction, finishAttemptAction, flagItemAction, type AnswerFeedback } from "@/server/actions/practice";
+import { EMPTY_DRAFT as EMPTY, toResponse, type Draft } from "./draft";
 import type { RunnerItem } from "./types";
-
-type Draft = { selected: number[]; tf: boolean | null; text: string };
-const EMPTY: Draft = { selected: [], tf: null, text: "" };
-
-function toResponse(kind: ReturnType<typeof bodyKind>, d: Draft): Response | null {
-  if (kind === "choice") return d.selected.length ? { kind: "choice", selected: d.selected } : null;
-  if (kind === "true_false") return d.tf === null ? null : { kind: "true_false", value: d.tf };
-  if (kind === "short_answer" || kind === "numeric") return d.text.trim() ? { kind: "text", value: d.text } : null;
-  // Código y desarrollo: se puede ver la solución sin escribir nada.
-  return { kind: "text", value: d.text };
-}
 
 function resultOf(f: AnswerFeedback): "correct" | "incorrect" | "partial" | null {
   if (f.needsSelfGrade) return null;

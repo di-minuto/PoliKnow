@@ -48,6 +48,10 @@ export type AttemptScore = {
   incorrect: number;
   partial: number;
   unanswered: number;
+  /** de desarrollo aún sin autoevaluar (simulacros): de momento suman 0 */
+  pending: number;
+  /** puntos restados por fallos */
+  penaltyLost: number;
   byTopic: { topicId: string | null; score: number; maxScore: number; grade: number; count: number }[];
 };
 
@@ -56,14 +60,17 @@ const round = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 export function scoreAttempt(items: readonly ItemOutcome[], penalty = 0): AttemptScore {
   let score = 0;
   let maxScore = 0;
-  const counts = { correct: 0, incorrect: 0, partial: 0, unanswered: 0 };
+  let penaltyLost = 0;
+  const counts = { correct: 0, incorrect: 0, partial: 0, unanswered: 0, pending: 0 };
   const topics = new Map<string | null, { score: number; maxScore: number; count: number }>();
   for (const item of items) {
     const s = itemFraction(item, penalty) * item.points;
     score += s;
     maxScore += item.points;
     if (item.grade === null) counts.unanswered += 1;
+    else if (item.grade === "self_assessed" && !item.selfGrade) counts.pending += 1;
     else counts[outcomeResult(item.grade, item.selfGrade)] += 1;
+    if (item.grade === "incorrect") penaltyLost += penalty * item.points;
     const t = topics.get(item.topicId) ?? { score: 0, maxScore: 0, count: 0 };
     topics.set(item.topicId, { score: t.score + s, maxScore: t.maxScore + item.points, count: t.count + 1 });
   }
@@ -73,6 +80,7 @@ export function scoreAttempt(items: readonly ItemOutcome[], penalty = 0): Attemp
     maxScore: round(maxScore, 3),
     grade: grade10(score, maxScore),
     ...counts,
+    penaltyLost: round(penaltyLost, 3),
     byTopic: [...topics].map(([topicId, t]) => ({
       topicId,
       score: round(t.score, 3),

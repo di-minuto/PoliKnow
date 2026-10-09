@@ -1,6 +1,6 @@
 import type { SrsCard } from "@/domain/srs/srs";
 
-/** Modos de test (columna attempts.mode). Los de examen llegan en la Fase 6. */
+/** Modos de test (columna attempts.mode). Los de examen están en exam.ts. */
 export const TEST_MODES = ["quick", "failed_review", "smart_review", "topic", "assessment", "custom"] as const;
 export type TestMode = (typeof TEST_MODES)[number];
 

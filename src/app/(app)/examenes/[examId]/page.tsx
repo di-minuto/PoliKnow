@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileText, Plus, Trash2 } from "lucide-react";
+import { OfficialExamStart } from "@/components/practice/exam-builder";
 import { ExamFields } from "@/components/questions/exam-fields";
 import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -56,6 +57,20 @@ export default async function ExamPage({ params }: PageProps<"/examenes/[examId]
       </header>
 
       <div className="flex flex-col gap-6">
+        {questions.some((q) => !q.archived) && (
+          <section id="hacer" aria-labelledby="hacer-titulo" className={`${cardClass} p-5`}>
+            <h2 id="hacer-titulo" className="mb-3 text-lg font-semibold">
+              Hacer como examen
+            </h2>
+            <OfficialExamStart
+              examId={exam.id}
+              durationMinutes={exam.durationMinutes}
+              penalty={exam.rules.wrongAnswerPenalty ?? 0}
+              allowBack={exam.rules.allowBack ?? true}
+              questionCount={questions.filter((q) => !q.archived).length}
+            />
+          </section>
+        )}
         {(exam.documentId || exam.solutionDocumentId) && (
           <div className="flex flex-wrap gap-2">
             {exam.documentId && (

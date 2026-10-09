@@ -15,7 +15,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 3 | Biblioteca y subida de documentos | ✅ Hecha |
 | 4 | Banco de preguntas | ✅ Hecha |
 | 5 | Tests y repaso espaciado | ✅ Hecha |
-| 6 | Exámenes | Pendiente |
+| 6 | Simulador de exámenes | ✅ Hecha |
 | 7 | Planificador | Pendiente |
 | 8 | Dashboard y estadísticas | Pendiente |
 | 9 | IA y procesamiento de documentos | Pendiente |
@@ -121,6 +121,25 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
   cada tema. El dominio de cada tema se recalcula al terminar cada test.
 - Sin migraciones nuevas: usa las tablas `attempts`, `attempt_items`,
   `question_progress` y `topic_progress` de la Fase 1.
+
+### Fase 6: qué incluye
+
+- **Simulacro de examen** (`/simulacro`, también desde Tests y desde cada parcial):
+  asignatura, parcial a simular (copia sus temas, pesos y duración), temas con
+  ponderación, número de preguntas, duración, dificultad, tipos de ejercicio,
+  procedencia, penalización por fallo y si se permite volver atrás.
+- **Examen oficial como examen real**: en la ficha de cada examen, «Hacer este
+  examen» con sus preguntas, su orden, sus puntos, su duración y su penalización.
+- **Durante el examen**: cronómetro siempre visible (se entrega solo al acabarse el
+  tiempo), progreso, marcar preguntas y ninguna solución. Las respuestas se guardan
+  al cambiar de pregunta y se pueden cambiar hasta entregar; sobreviven a recargar.
+  El servidor rechaza respuestas fuera de tiempo.
+- **Al entregar**: nota sobre 10 y en puntos, aciertos, errores, sin responder, puntos
+  perdidos por penalización, nota por tema, tiempo usado, recomendaciones de estudio
+  y cada pregunta con tu respuesta, la solución y la explicación. Las de desarrollo
+  se autoevalúan después (Mal / Regular / Bien) y la nota se recalcula.
+- Cada intento se guarda en el historial de Tests y alimenta el repaso espaciado.
+- Sin migraciones nuevas.
 
 ## Puesta en marcha
 

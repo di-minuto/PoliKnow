@@ -126,6 +126,15 @@ describe("puntuación", () => {
   it("con penalización resta los fallos y nunca baja de 0", () => {
     expect(scoreAttempt(items, 0.5).score).toBe(1.5);
     expect(scoreAttempt([{ topicId: null, points: 1, grade: "incorrect", selfGrade: null }], 1).grade).toBe(0);
+    expect(scoreAttempt(items, 0.5).penaltyLost).toBe(0.5);
+  });
+
+  it("las de desarrollo sin autoevaluar quedan pendientes, no como fallo", () => {
+    const s = scoreAttempt([
+      { topicId: null, points: 2, grade: "self_assessed", selfGrade: null },
+      { topicId: null, points: 1, grade: "correct", selfGrade: null },
+    ]);
+    expect(s).toMatchObject({ pending: 1, incorrect: 0, correct: 1, score: 1, maxScore: 3 });
   });
 
   it("traduce el resultado al repaso espaciado", () => {
