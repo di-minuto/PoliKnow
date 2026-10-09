@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseLocaleNumber } from "@/domain/shared/numbers";
 
 /**
  * Validación de la entrada de formularios (FormData → objetos tipados).
@@ -13,16 +14,24 @@ export const optionalText = (max: number) =>
 export const requiredText = (max: number, label: string) =>
   z.string({ error: `${label} es obligatorio.` }).trim().min(1, `${label} es obligatorio.`).max(max, `Máximo ${max} caracteres.`);
 
-const level = z.coerce.number().int().min(1).max(5);
+export const level = z.coerce.number().int().min(1).max(5);
 
-const optionalNumber = (min: number, max: number) =>
-  z.preprocess(emptyToNull, z.coerce.number().min(min).max(max).nullable().default(null));
+/** Número opcional; admite coma decimal ("0,5"). */
+export const optionalNumber = (min: number, max: number) =>
+  z.preprocess(
+    (v) => {
+      const value = emptyToNull(v);
+      if (value === null || value === undefined) return null;
+      return parseLocaleNumber(value) ?? value;
+    },
+    z.number({ error: "Número no válido." }).min(min, `Mínimo ${min}.`).max(max, `Máximo ${max}.`).nullable().default(null),
+  );
 
 export const optionalInt = (min: number, max: number) =>
   z.preprocess(emptyToNull, z.coerce.number().int().min(min).max(max).nullable().default(null));
 
 export const id = z.uuid("Identificador no válido.");
-const optionalId = z.preprocess(emptyToNull, id.nullable().default(null));
+export const optionalId = z.preprocess(emptyToNull, id.nullable().default(null));
 
 export const courseInput = z.object({
   name: requiredText(100, "El nombre"),

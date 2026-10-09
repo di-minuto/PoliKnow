@@ -13,7 +13,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 1 | Arquitectura, proyecto, base de datos, autenticación | ✅ Hecha |
 | 2 | Asignaturas, parciales y temas | ✅ Hecha |
 | 3 | Biblioteca y subida de documentos | ✅ Hecha |
-| 4 | Banco de preguntas | Pendiente |
+| 4 | Banco de preguntas | ✅ Hecha |
 | 5 | Tests | Pendiente |
 | 6 | Exámenes | Pendiente |
 | 7 | Planificador | Pendiente |
@@ -78,6 +78,27 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 - Migración `20261009000003_search.sql` (configuración `es_unaccent` y función `search_all`).
   Si ya tenías la base de datos de las fases 1-2, ejecuta `supabase/instalar-fase3.sql` en el
   SQL Editor.
+
+### Fase 4: qué incluye
+
+- **Banco de preguntas** (`/preguntas`): los 9 tipos (tipo test con una o varias correctas,
+  verdadero/falso, respuesta corta, numérica con margen y unidad, programación, completar código,
+  encontrar errores, teórica y problema), con tema, subtema, dificultad, etiquetas, explicación y
+  documento de origen. Enunciados con bloques de código.
+- **Procedencia siempre visible** y con color propio: examen oficial, material de la asignatura,
+  creada por mí o generada por IA. La BD impide mezclar oficiales con el resto; las de IA guardan
+  el modelo y entran «Por revisar» (aprobar o descartar).
+- **Lista con filtros** por asignatura, tema (incluye subtemas), tipo, procedencia, pendientes de
+  revisar y archivadas, y búsqueda sin tildes en los enunciados.
+- **Variantes** («parecida a»), archivar y borrar.
+- **Exámenes oficiales** (`/examenes`): título, año, convocatoria, fecha, duración, puntos, resta
+  por fallo, evaluación y PDF de enunciado/soluciones de la biblioteca; sus preguntas numeradas y
+  aviso si los puntos no suman el total.
+- **Importación JSON** (`/preguntas/importar`): se comprueba antes de guardar, informa de errores
+  por pregunta, busca los temas por nombre y, si el archivo trae `exam`, crea el examen oficial.
+- Corrección automática de los tipos que lo permiten (`src/domain/questions/grading.ts`), lista
+  para los tests de la Fase 5. Los números admiten coma decimal.
+- Sin migraciones nuevas: usa las tablas de la Fase 1.
 
 ## Puesta en marcha
 

@@ -23,7 +23,7 @@ function resultHref(r: SearchResult): string {
     case "topic":
       return `/asignaturas/${r.subjectId}`;
     case "question":
-      return `/preguntas`;
+      return `/preguntas/${r.id}`;
   }
 }
 
@@ -149,11 +149,13 @@ export default async function SearchPage({ searchParams }: PageProps<"/buscar">)
             </h2>
             <ul className={`${cardClass} divide-y divide-border`}>
               {questions.map((r) => (
-                <li key={r.id} className="px-4 py-3">
-                  <p className="text-sm leading-relaxed">
-                    <Highlighted snippet={r.snippet} />
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted">{subjectTag(r.subjectId)}</p>
+                <li key={r.id}>
+                  <Link href={resultHref(r)} className="block px-4 py-3 hover:bg-primary-soft/50">
+                    <p className="text-sm leading-relaxed">
+                      <Highlighted snippet={r.snippet} />
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">{subjectTag(r.subjectId)}</p>
+                  </Link>
                 </li>
               ))}
             </ul>

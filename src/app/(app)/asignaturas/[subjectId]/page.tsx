@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowDown, ArrowUp, FileUp, Library, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, FileUp, Library, Pencil, Trash2 } from "lucide-react";
 import { AssessmentFormFields } from "@/components/academic/assessment-form-fields";
 import { CountdownBadge } from "@/components/academic/countdown-badge";
 import { SubjectFormFields } from "@/components/academic/subject-form-fields";
@@ -24,6 +24,7 @@ import {
 } from "@/server/actions/academic";
 import { getProfile } from "@/server/profile";
 import { countDocuments } from "@/server/repositories/documents";
+import { countQuestions } from "@/server/repositories/questions";
 import {
   getSubject,
   listAssessmentTopics,
@@ -52,13 +53,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SubjectPage({ params }: Props) {
   const { subjectId } = await params;
   const subject = await load(subjectId);
-  const [topics, assessments, types, courses, profile, documentCount] = await Promise.all([
+  const [topics, assessments, types, courses, profile, documentCount, questionCount] = await Promise.all([
     listTopics(subjectId),
     listAssessments(subjectId),
     listAssessmentTypes(),
     listCourses(),
     getProfile(),
     countDocuments(subjectId),
+    countQuestions(subjectId),
   ]);
   const links = await listAssessmentTopics(assessments.map((a) => a.id));
 
@@ -137,7 +139,7 @@ export default async function SubjectPage({ params }: Props) {
         </section>
 
         <section>
-          <h2 className="mb-3 text-lg font-semibold">Documentos</h2>
+          <h2 className="mb-3 text-lg font-semibold">Material</h2>
           <div className="flex flex-wrap gap-2">
             <Link href={`/biblioteca?asignatura=${subjectId}`} className={buttonClass.secondary}>
               <Library className="size-4" aria-hidden />
@@ -146,6 +148,10 @@ export default async function SubjectPage({ params }: Props) {
             <Link href={`/biblioteca/subir?asignatura=${subjectId}`} className={buttonClass.secondary}>
               <FileUp className="size-4" aria-hidden />
               Subir
+            </Link>
+            <Link href={`/preguntas?asignatura=${subjectId}`} className={buttonClass.secondary}>
+              <BookOpen className="size-4" aria-hidden />
+              {questionCount === 1 ? "1 pregunta" : `${questionCount} preguntas`}
             </Link>
           </div>
         </section>
