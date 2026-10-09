@@ -6,7 +6,11 @@ import { z } from "zod";
  */
 const publicSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+  // Un error típico es copiar la clave recortada desde el panel ("sb_publishable_abc…").
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z
+    .string()
+    .min(1)
+    .regex(/^[\x21-\x7e]+$/, "La clave contiene caracteres no válidos (¿se copió recortada con «…»?)."),
 });
 
 export type PublicEnv = z.infer<typeof publicSchema>;
