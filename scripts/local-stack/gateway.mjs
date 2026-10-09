@@ -1,9 +1,13 @@
 // Pasarela local que imita la API de Supabase para tests de extremo a extremo:
 //  - /rest/v1/*  → PostgREST
 //  - /auth/v1/*  → autenticación mínima (registro, login, refresco, usuario, logout)
+//  - /storage/v1/* → almacenamiento en disco (subir, descargar, enlaces firmados, borrar);
+//                    como las políticas de Supabase, solo deja tocar <user_id>/...
 // No usar en producción.
 import { createHmac, randomUUID, scryptSync, timingSafeEqual, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
+import { dirname, join, normalize } from "node:path";
 import pg from "pg";
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 54321);
@@ -11,6 +15,13 @@ const POSTGREST = process.env.POSTGREST_URL ?? "http://127.0.0.1:54330";
 const SECRET = process.env.JWT_SECRET;
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const refreshTokens = new Map();
+const STORAGE_DIR = process.env.STORAGE_DIR ?? "/tmp/poliknow-local-stack/storage";
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers": "*",
+  "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
+  "access-control-expose-headers": "content-range, content-type, content-disposition",
+};
 
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 function signJwt(payload) {
@@ -61,9 +72,16 @@ function session(row) {
 }
 
 const send = (res, status, body) => {
-  res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
+  res.writeHead(status, { "content-type": "application/json", ...CORS });
   res.end(body === undefined ? "" : JSON.stringify(body));
 };
+const readRaw = (req) =>
+  new Promise((resolve, reject) => {
+    const parts = [];
+    req.on("data", (c) => parts.push(c));
+    req.on("end", () => resolve(Buffer.concat(parts)));
+    req.on("error", reject);
+  });
 const readBody = (req) =>
   new Promise((resolve) => {
     let data = "";
@@ -114,16 +132,108 @@ function proxyRest(req, res, path, search) {
   // PostgREST valida el JWT; la clave publicable no lo es, así que se trata como anónimo.
   if (!verifyJwt(headers.authorization?.replace(/^Bearer /i, ""))) delete headers.authorization;
   const upstream = httpRequest(target, { method: req.method, headers }, (up) => {
-    res.writeHead(up.statusCode ?? 502, up.headers);
+    res.writeHead(up.statusCode ?? 502, { ...up.headers, ...CORS });
     up.pipe(res);
   });
   upstream.on("error", (e) => send(res, 502, { msg: e.message }));
   req.pipe(upstream);
 }
 
+// ------------------------------------------------------------------ storage
+
+function objectFile(bucket, path) {
+  const file = normalize(join(STORAGE_DIR, bucket, path));
+  if (!file.startsWith(normalize(join(STORAGE_DIR, bucket)) + "/")) throw new Error("ruta no válida");
+  return file;
+}
+const ownPath = (claims, path) => claims && path.split("/")[0] === claims.sub;
+const storageError = (res, status, error, message) =>
+  send(res, status, { statusCode: String(status), error, message });
+
+function serveObject(res, file, download) {
+  if (!existsSync(file)) return storageError(res, 404, "not_found", "Object not found");
+  const meta = JSON.parse(readFileSync(`${file}.meta.json`, "utf8"));
+  const headers = { "content-type": meta.contentType, ...CORS };
+  if (download !== null) {
+    headers["content-disposition"] = `attachment; filename="${encodeURIComponent(download || file.split("/").pop())}"`;
+  }
+  res.writeHead(200, headers);
+  res.end(readFileSync(file));
+}
+
+async function storage(req, res, path, query) {
+  const claims = verifyJwt(req.headers.authorization?.replace(/^Bearer /i, ""));
+
+  // Enlace firmado: GET /object/sign/<bucket>/<ruta>?token=...
+  const signed = /^\/object\/sign\/([^/]+)\/(.+)$/.exec(path);
+  if (signed && req.method === "GET") {
+    const token = verifyJwt(query.get("token"));
+    const key = `${signed[1]}/${decodeURIComponent(signed[2])}`;
+    if (!token || token.url !== key) return storageError(res, 400, "InvalidJWT", "invalid signature");
+    return serveObject(res, objectFile(signed[1], decodeURIComponent(signed[2])), query.get("download"));
+  }
+  if (signed && req.method === "POST") {
+    const objectPath = decodeURIComponent(signed[2]);
+    if (!ownPath(claims, objectPath)) return storageError(res, 400, "not_found", "Object not found");
+    if (!existsSync(objectFile(signed[1], objectPath))) return storageError(res, 400, "not_found", "Object not found");
+    const { expiresIn } = await readBody(req);
+    const now = Math.floor(Date.now() / 1000);
+    const token = signJwt({ url: `${signed[1]}/${objectPath}`, iat: now, exp: now + Number(expiresIn) });
+    return send(res, 200, { signedURL: `/object/sign/${signed[1]}/${objectPath}?token=${token}` });
+  }
+
+  // Borrar: DELETE /object/<bucket> { prefixes }
+  const bucketOnly = /^\/object\/([^/]+)$/.exec(path);
+  if (bucketOnly && req.method === "DELETE") {
+    const { prefixes = [] } = await readBody(req);
+    const removed = [];
+    for (const p of prefixes) {
+      if (!ownPath(claims, p)) continue;
+      const file = objectFile(bucketOnly[1], p);
+      if (existsSync(file)) {
+        rmSync(file);
+        rmSync(`${file}.meta.json`, { force: true });
+        removed.push({ name: p, bucket_id: bucketOnly[1] });
+      }
+    }
+    return send(res, 200, removed);
+  }
+
+  // Subir / descargar: /object/[authenticated/]<bucket>/<ruta>
+  const object = /^\/object\/(?:authenticated\/)?([^/]+)\/(.+)$/.exec(path);
+  if (object) {
+    const [, bucket, rawPath] = object;
+    const objectPath = decodeURIComponent(rawPath);
+    if (!claims) return storageError(res, 400, "Unauthorized", "Invalid JWT");
+    if (!ownPath(claims, objectPath)) {
+      return storageError(res, 400, "Unauthorized", "new row violates row-level security policy");
+    }
+    const file = objectFile(bucket, objectPath);
+    if (req.method === "GET") return serveObject(res, file, null);
+    if (req.method === "POST" || req.method === "PUT") {
+      if (req.method === "POST" && req.headers["x-upsert"] !== "true" && existsSync(file)) {
+        return storageError(res, 409, "Duplicate", "The resource already exists");
+      }
+      if (!String(req.headers["content-type"] ?? "").startsWith("multipart/")) {
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, await readRaw(req));
+        writeFileSync(`${file}.meta.json`, JSON.stringify({ contentType: req.headers["content-type"] }));
+        return send(res, 200, { Id: randomUUID(), Key: `${bucket}/${objectPath}` });
+      }
+      return storageError(res, 400, "unsupported", "La pasarela local solo admite cuerpos sin multipart");
+    }
+  }
+  return send(res, 404, { msg: `No implementado en la pasarela local: ${req.method} ${path}` });
+}
+
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, CORS);
+      return res.end();
+    }
+    if (url.pathname.startsWith("/storage/v1")) return await storage(req, res, url.pathname.slice(11), url.searchParams);
     if (url.pathname.startsWith("/auth/v1")) return await auth(req, res, url.pathname.slice(8), url.searchParams);
     if (url.pathname.startsWith("/rest/v1")) return proxyRest(req, res, url.pathname.slice(8) || "/", url.search);
     send(res, 404, { msg: "not found" });

@@ -5,12 +5,12 @@ import { z } from "zod";
  * Los campos vacíos de un formulario llegan como "" y se convierten en null.
  */
 
-const emptyToNull = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
+export const emptyToNull = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
 
-const optionalText = (max: number) =>
+export const optionalText = (max: number) =>
   z.preprocess(emptyToNull, z.string().trim().max(max, `Máximo ${max} caracteres.`).nullable().default(null));
 
-const requiredText = (max: number, label: string) =>
+export const requiredText = (max: number, label: string) =>
   z.string({ error: `${label} es obligatorio.` }).trim().min(1, `${label} es obligatorio.`).max(max, `Máximo ${max} caracteres.`);
 
 const level = z.coerce.number().int().min(1).max(5);
@@ -18,10 +18,10 @@ const level = z.coerce.number().int().min(1).max(5);
 const optionalNumber = (min: number, max: number) =>
   z.preprocess(emptyToNull, z.coerce.number().min(min).max(max).nullable().default(null));
 
-const optionalInt = (min: number, max: number) =>
+export const optionalInt = (min: number, max: number) =>
   z.preprocess(emptyToNull, z.coerce.number().int().min(min).max(max).nullable().default(null));
 
-const id = z.uuid("Identificador no válido.");
+export const id = z.uuid("Identificador no válido.");
 const optionalId = z.preprocess(emptyToNull, id.nullable().default(null));
 
 export const courseInput = z.object({

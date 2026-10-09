@@ -12,7 +12,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 |---|---|---|
 | 1 | Arquitectura, proyecto, base de datos, autenticación | ✅ Hecha |
 | 2 | Asignaturas, parciales y temas | ✅ Hecha |
-| 3 | Biblioteca y subida de documentos | Pendiente |
+| 3 | Biblioteca y subida de documentos | ✅ Hecha |
 | 4 | Banco de preguntas | Pendiente |
 | 5 | Tests | Pendiente |
 | 6 | Exámenes | Pendiente |
@@ -56,6 +56,28 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 - Lógica pura en `src/domain/academic` (árbol de temas, reordenación, pesos, validación con
   zod), repositorios en `src/server/repositories` y Server Actions en `src/server/actions`.
 - Test **e2e en móvil** (Playwright) que recorre todo lo anterior contra una base de datos real.
+
+### Fase 3: qué incluye
+
+- **Biblioteca** (`/biblioteca`): documentos por asignatura con filtros por asignatura, tipo y
+  tema; icono por formato, tamaño, páginas y estado de lectura del texto.
+- **Subida** (`/biblioteca/subir`): uno o varios archivos (PDF, DOCX, PPTX, TXT, Markdown e
+  imágenes, hasta 50 MB) con asignatura, tipo, temas, evaluaciones y, si es un examen, año y
+  convocatoria. El archivo va **directo del navegador a Supabase Storage** (bucket privado), sin
+  pasar por Vercel. Los duplicados se detectan por la huella SHA-256.
+- **Lectura del texto en el dispositivo** (`src/documents/`): pdf.js por páginas, DOCX con sus
+  títulos como secciones, PPTX por diapositivas con título y notas del orador, TXT/Markdown.
+  El texto se trocea en fragmentos de ~1500 caracteres con su página y se guarda en
+  `document_chunks`. Las imágenes quedan para el OCR de la Fase 9. Coste: cero.
+- **Ficha del documento** (`/biblioteca/[id]`): abrir o descargar con enlace temporal, ver el
+  texto extraído paginado, editar datos, volver a leer el texto y borrar (archivo incluido).
+- **Búsqueda global** (`/buscar`): texto completo en español **sin tildes** («clausula» encuentra
+  «cláusula») sobre fragmentos, títulos, preguntas y temas, con resaltado y filtro por
+  asignatura; cada resultado lleva a la página exacta del documento.
+- La página de cada asignatura muestra cuántos documentos tiene y un acceso para subir más.
+- Migración `20261009000003_search.sql` (configuración `es_unaccent` y función `search_all`).
+  Si ya tenías la base de datos de las fases 1-2, ejecuta `supabase/instalar-fase3.sql` en el
+  SQL Editor.
 
 ## Puesta en marcha
 
@@ -106,6 +128,7 @@ src/
   app/            rutas (App Router): (auth)/login, auth/confirm, (app)/hoy, ...
   components/     UI reutilizable (layout/)
   domain/         lógica de negocio pura y tipos (academic, documents, questions, ...)
+  documents/      lectura de PDF/DOCX/PPTX/TXT y troceado del texto (sin dependencias de Next)
   server/         acceso a datos en servidor (auth, perfil, repositorios)
   ai/             AIProvider, registro de proveedores, JSON validado, caché
   lib/            Supabase (cliente/servidor/sesión), env, rutas, fechas
@@ -124,7 +147,7 @@ Reglas de arquitectura: `domain/` no importa Next, Supabase ni IA; solo `server/
 
 Necesitan un Supabase local. Lo normal es `npx supabase start`; si Docker Hub no está
 disponible, `npm run stack:local` levanta una imitación mínima (Postgres 16 local,
-PostgREST en Docker y una pasarela de autenticación en Node; solo para tests).
+PostgREST en Docker y una pasarela en Node que imita autenticación y Storage; solo para tests).
 
 ```bash
 npm run stack:local

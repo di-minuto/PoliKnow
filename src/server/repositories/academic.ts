@@ -115,14 +115,14 @@ export const toAssessment = (r: AssessmentRow): Assessment => ({
   position: r.position,
 });
 
-class RepositoryError extends Error {
+export class RepositoryError extends Error {
   constructor(action: string, cause: { message: string }) {
     super(`${action}: ${cause.message}`);
     this.name = "RepositoryError";
   }
 }
 
-function check<T>(action: string, result: { data: T | null; error: { message: string } | null }): T {
+export function check<T>(action: string, result: { data: T | null; error: { message: string } | null }): T {
   if (result.error) throw new RepositoryError(action, result.error);
   return result.data as T;
 }
@@ -156,12 +156,12 @@ export async function getSubject(id: string): Promise<Subject | null> {
   return row ? toSubject(row) : null;
 }
 
-export async function listTopics(subjectId: string): Promise<Topic[]> {
+/** Temas de una asignatura, o de todas si no se indica. */
+export async function listTopics(subjectId?: string): Promise<Topic[]> {
   const db = await createClient();
-  const rows = check<TopicRow[]>(
-    "Listar temas",
-    await db.from("topics").select(TOPIC_COLUMNS).eq("subject_id", subjectId).order("position"),
-  );
+  let query = db.from("topics").select(TOPIC_COLUMNS);
+  if (subjectId) query = query.eq("subject_id", subjectId);
+  const rows = check<TopicRow[]>("Listar temas", await query.order("position"));
   return rows.map(toTopic);
 }
 

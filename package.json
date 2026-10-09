@@ -14,13 +14,16 @@
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked > src/types/database.ts",
     "test:e2e": "playwright test",
-    "stack:local": "scripts/local-stack/start.sh"
+    "stack:local": "scripts/local-stack/start.sh",
+    "postinstall": "node scripts/copy-pdf-worker.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
+    "jszip": "^3.10.2",
     "lucide-react": "^1.53.0",
     "next": "16.4.0",
+    "pdfjs-dist": "^6.3.289",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
@@ -35,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.23.1",
     "supabase": "^2.120.0",
     "tailwindcss": "^4",

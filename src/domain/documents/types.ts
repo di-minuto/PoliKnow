@@ -46,3 +46,32 @@ export function buildStoragePath(userId: string, documentId: string, filename: s
     .slice(-120);
   return `${userId}/${documentId}/${safe || "archivo"}`;
 }
+
+export type DocumentChunk = {
+  id: string;
+  chunkIndex: number;
+  pageFrom: number | null;
+  pageTo: number | null;
+  heading: string | null;
+  content: string;
+};
+
+export type DocumentTypeEntry = {
+  code: string;
+  label: string;
+  isExam: boolean;
+};
+
+export type SearchResultKind = "chunk" | "document" | "question" | "topic";
+
+export type SearchResult = {
+  kind: SearchResultKind;
+  id: string;
+  title: string;
+  snippet: string;
+  subjectId: string;
+  documentId: string | null;
+  chunkIndex: number | null;
+  page: number | null;
+  pageTo: number | null;
+};

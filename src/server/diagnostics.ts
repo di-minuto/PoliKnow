@@ -68,6 +68,15 @@ export async function runDiagnostics(): Promise<Check[]> {
     }
   }
 
+  // Fase 3: búsqueda (migración 20261009000003_search.sql).
+  const search = await db.rpc("search_all", { q: "prueba", max_results: 1 });
+  checks.push({
+    label: "Búsqueda (Fase 3)",
+    ok: !search.error,
+    detail: search.error ? `${search.error.code ?? ""} ${search.error.message}`.trim() : undefined,
+    fix: search.error ? "Ejecuta supabase/instalar-fase3.sql en el SQL Editor de Supabase." : undefined,
+  });
+
   if (claims?.claims?.sub) {
     const { data, error } = await db.from("profiles").select("id").eq("id", claims.claims.sub).maybeSingle();
     checks.push({

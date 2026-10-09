@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { unaccent } from "@electric-sql/pglite/contrib/unaccent";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const root = join(__dirname, "..", "..");
@@ -22,7 +23,7 @@ async function asUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
 }
 
 beforeAll(async () => {
-  db = new PGlite();
+  db = new PGlite({ extensions: { unaccent } });
   await db.exec(readFileSync(join(__dirname, "supabase-stub.sql"), "utf8"));
   for (const file of readdirSync(migrationsDir).sort()) {
     await db.exec(readFileSync(join(migrationsDir, file), "utf8"));
@@ -209,5 +210,65 @@ describe("jerarquía académica (Fase 2)", () => {
         db.query(`insert into assessments (subject_id, name, assessment_type) values ($1, 'X', 'inventado')`, [subjectId]),
       ),
     ).rejects.toThrow(/foreign key/);
+  });
+});
+
+describe("biblioteca y búsqueda (Fase 3)", () => {
+  async function createDocument(userId: string, subjectId: string, title: string, sha: string) {
+    return asUser(userId, async () => {
+      const doc = await db.query<{ id: string }>(
+        `insert into documents (subject_id, document_type, title, storage_path, sha256, original_filename)
+         values ($1, 'theory', $2, $3, $4, 'apuntes.pdf') returning id`,
+        [subjectId, title, `${userId}/${sha}/apuntes.pdf`, sha],
+      );
+      return doc.rows[0].id;
+    });
+  }
+
+  it("no deja subir dos veces el mismo archivo", async () => {
+    const subjectId = await createSubject(USER_A);
+    await createDocument(USER_A, subjectId, "Tema 1", "hash-dup");
+    await expect(createDocument(USER_A, subjectId, "Tema 1 otra vez", "hash-dup")).rejects.toThrow(/unique/);
+  });
+
+  it("busca sin tildes, resalta y respeta RLS", async () => {
+    const subjectId = await createSubject(USER_A);
+    const docId = await createDocument(USER_A, subjectId, "OpenMP básico", "hash-search");
+    await asUser(USER_A, () =>
+      db.query(
+        `insert into document_chunks (document_id, chunk_index, page_from, page_to, content) values
+           ($1, 0, 3, 3, 'La cláusula reduction combina los resultados parciales de cada hilo.'),
+           ($1, 1, 4, 4, 'Las secciones críticas serializan el acceso.')`,
+        [docId],
+      ),
+    );
+    type Row = { kind: string; snippet: string; page: number | null; document_id: string | null };
+    const found = await asUser(USER_A, () => db.query<Row>(`select * from search_all('clausula reduction')`));
+    const chunk = found.rows.find((r) => r.kind === "chunk");
+    expect(chunk?.page).toBe(3);
+    expect(chunk?.document_id).toBe(docId);
+    expect(chunk?.snippet).toContain("⟦cláusula⟧");
+
+    const byTitle = await asUser(USER_A, () => db.query<Row>(`select * from search_all('basico')`));
+    expect(byTitle.rows.map((r) => r.kind)).toContain("document");
+
+    const otherSubject = await asUser(USER_A, () =>
+      db.query(`select * from search_all('clausula', $1)`, ["00000000-0000-0000-0000-000000000099"]),
+    );
+    expect(otherSubject.rows).toHaveLength(0);
+
+    const other = await asUser(USER_B, () => db.query(`select * from search_all('clausula')`));
+    expect(other.rows).toHaveLength(0);
+  });
+
+  it("borrar un documento borra sus fragmentos", async () => {
+    const subjectId = await createSubject(USER_A);
+    const docId = await createDocument(USER_A, subjectId, "Para borrar", "hash-del");
+    const left = await asUser(USER_A, async () => {
+      await db.query(`insert into document_chunks (document_id, chunk_index, content) values ($1, 0, 'x')`, [docId]);
+      await db.query(`delete from documents where id = $1`, [docId]);
+      return db.query(`select * from document_chunks where document_id = $1`, [docId]);
+    });
+    expect(left.rows).toHaveLength(0);
   });
 });

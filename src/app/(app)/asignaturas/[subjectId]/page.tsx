@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, FileUp, Library, Pencil, Trash2 } from "lucide-react";
 import { AssessmentFormFields } from "@/components/academic/assessment-form-fields";
 import { CountdownBadge } from "@/components/academic/countdown-badge";
 import { SubjectFormFields } from "@/components/academic/subject-form-fields";
@@ -23,6 +23,7 @@ import {
   updateTopicAction,
 } from "@/server/actions/academic";
 import { getProfile } from "@/server/profile";
+import { countDocuments } from "@/server/repositories/documents";
 import {
   getSubject,
   listAssessmentTopics,
@@ -51,12 +52,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SubjectPage({ params }: Props) {
   const { subjectId } = await params;
   const subject = await load(subjectId);
-  const [topics, assessments, types, courses, profile] = await Promise.all([
+  const [topics, assessments, types, courses, profile, documentCount] = await Promise.all([
     listTopics(subjectId),
     listAssessments(subjectId),
     listAssessmentTypes(),
     listCourses(),
     getProfile(),
+    countDocuments(subjectId),
   ]);
   const links = await listAssessmentTopics(assessments.map((a) => a.id));
 
@@ -132,6 +134,20 @@ export default async function SubjectPage({ params }: Props) {
               <TopicFormFields subjectId={subjectId} parentOptions={flat} />
             </ActionForm>
           </Disclosure>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Documentos</h2>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/biblioteca?asignatura=${subjectId}`} className={buttonClass.secondary}>
+              <Library className="size-4" aria-hidden />
+              {documentCount === 1 ? "1 documento" : `${documentCount} documentos`}
+            </Link>
+            <Link href={`/biblioteca/subir?asignatura=${subjectId}`} className={buttonClass.secondary}>
+              <FileUp className="size-4" aria-hidden />
+              Subir
+            </Link>
+          </div>
         </section>
 
         <section className="flex flex-col gap-3">
