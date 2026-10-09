@@ -49,7 +49,8 @@ export async function runDiagnostics(): Promise<Check[]> {
   });
 
   for (const table of REQUIRED_TABLES) {
-    const { error } = await db.from(table).select("*", { head: true, count: "exact" }).limit(1);
+    // Sin `head`: una petición HEAD a una tabla inexistente no devuelve el error.
+    const { error } = await db.from(table).select("*").limit(1);
     if (error) {
       const missing = /does not exist|Could not find the table|PGRST205|42P01/i.test(`${error.code} ${error.message}`);
       checks.push({
