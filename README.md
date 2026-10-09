@@ -20,7 +20,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 8 | Dashboard y estadísticas | ✅ |
 | 9 | IA y procesamiento de documentos | ✅ |
 | 10 | PWA y optimización móvil | ✅ |
-| 11 | Backups, importación/exportación | Pendiente |
+| 11 | Backups, importación/exportación | ✅ |
 
 ### Fase 1: qué incluye
 
@@ -227,6 +227,29 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 - **Privacidad**: al cerrar sesión se borran del dispositivo las páginas guardadas.
 - e2e contra el build de producción, con un proxy que corta la red de verdad
   (`tests/e2e/toggle-proxy.mjs`), porque Playwright no deja sin red al service worker.
+
+### Fase 11: qué incluye
+
+- **Copia de seguridad** (`/datos`, en «Más» y en Ajustes). Todo se hace en el navegador con tu
+  sesión, así que los datos no pasan por el servidor de la app ni por sus límites de tamaño.
+- **Exportar** en dos formatos:
+  - **JSON** (`estudio-copia-AAAA-MM-DD.json`): ajustes y perfil, tus tipos propios, cursos,
+    asignaturas, temas, evaluaciones, documentos (metadatos y texto extraído), exámenes
+    oficiales, preguntas, progreso y repaso, tests y simulacros con sus respuestas,
+    disponibilidad, días bloqueados, plan, sesiones y conversaciones del asistente.
+  - **ZIP**: el mismo `backup.json` más los archivos de la biblioteca en `files/<id>/<nombre>`.
+  - Formato versionado (`format: "estudio-backup"`, `version: 1`), sin `user_id` ni columnas
+    calculadas, descrito en `src/domain/backup/format.ts`.
+- **Importar** un JSON o un ZIP: primero muestra qué contiene y de qué cuenta es; al importar
+  **añade** los datos a la cuenta actual con ids nuevos y las referencias traducidas (también las
+  que van dentro de los JSON). No borra ni pisa nada, así que sirve para restaurar o para pasar
+  todo a otra cuenta u otro proyecto de Supabase.
+  - Los documentos que ya tienes (mismo archivo, misma huella) no se duplican; los que no vienen
+    con su archivo se omiten y sus preguntas quedan sin documento de origen.
+  - Tu horario y días bloqueados existentes se respetan.
+  - Si algo falla a medias, se deshace lo añadido.
+- Lógica de restauración pura y probada (`src/domain/backup/restore.ts`); e2e que exporta desde
+  una cuenta e importa en otra nueva. No hace falta ejecutar SQL nuevo.
 
 ## Puesta en marcha
 

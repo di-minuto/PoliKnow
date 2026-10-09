@@ -3,6 +3,7 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardCheck,
+  DatabaseBackup,
   GraduationCap,
   Library,
   ListChecks,
@@ -34,6 +35,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
   { href: "/asistente", label: "Asistente", icon: MessageCircle },
   { href: "/buscar", label: "Buscar", icon: Search },
+  { href: "/datos", label: "Copia de seguridad", icon: DatabaseBackup },
   { href: "/ajustes", label: "Ajustes", icon: Settings },
 ];
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { X } from "lucide-react";
+import Link from "next/link";
+import { DatabaseBackup, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -119,6 +120,15 @@ export default async function SettingsPage() {
           ) : (
             <AIDisabled feature="El asistente, generar preguntas y explicar fallos" reason={ai.reason} />
           )}
+        </section>
+
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">Tus datos</h2>
+          <p className="mb-3 text-sm text-muted">Descarga una copia de todo (JSON o ZIP con archivos) o recupérala.</p>
+          <Link href="/datos" className={buttonClass.secondary}>
+            <DatabaseBackup className="size-4" aria-hidden />
+            Copia de seguridad
+          </Link>
         </section>
 
         <section>
