@@ -6,6 +6,7 @@ export const ANTHROPIC_DEFAULT_MODEL = "claude-haiku-5-5";
 
 type MessagesResponse = {
   content?: { type: string; text?: string }[];
+  stop_reason?: string | null;
   usage?: { input_tokens?: number; output_tokens?: number };
 };
 
@@ -41,6 +42,7 @@ export class AnthropicProvider implements AIProvider {
       provider: this.name,
       model: this.model,
       usage: { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 },
+      ...(data.stop_reason === "max_tokens" ? { truncated: true } : {}),
     };
   }
 }

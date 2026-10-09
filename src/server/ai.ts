@@ -112,14 +112,21 @@ export async function runAI(request: AICompletionRequest, options: RunOptions = 
  * buena: se borra de la caché para que el siguiente intento vuelva a pedirla.
  */
 export async function runAIJson<T>(request: AICompletionRequest, schema: ZodType<T>, options: RunOptions = {}) {
-  const result = await runAI(request, options);
-  const parsed = (() => {
+  const jsonRequest = { ...request, json: true };
+  const parse = (text: string) => {
     try {
-      return schema.safeParse(extractJson(result.text));
+      return schema.safeParse(extractJson(text));
     } catch {
       return null;
     }
-  })();
+  };
+  let result = await runAI(jsonRequest, options);
+  let parsed = parse(result.text);
+  // Un segundo intento sin caché: a veces la respuesta sale mal una vez (salvo si se ha cortado por largo).
+  if (!parsed?.success && !result.truncated) {
+    result = await runAI(jsonRequest, { ...options, useCache: false });
+    parsed = parse(result.text);
+  }
   if (!parsed?.success) {
     const db = await createClient();
     const key = buildCacheKey({
@@ -130,7 +137,13 @@ export async function runAIJson<T>(request: AICompletionRequest, schema: ZodType
       input: options.cacheInput ?? { system: request.system, messages: request.messages },
     });
     await db.from("ai_cache").update({ response: { invalid: true } }).eq("cache_key", key);
-    throw new AIResponseFormatError("La IA no ha devuelto el formato esperado. Prueba otra vez.", result.text);
+    console.error(`[ia] formato no válido (${request.task}, ${result.provider}/${result.model}):`, result.text.slice(0, 500));
+    throw new AIResponseFormatError(
+      result.truncated
+        ? "La respuesta de la IA se ha cortado por larga. Prueba con menos preguntas o con un tema más concreto."
+        : "La IA no ha devuelto el formato esperado. Prueba otra vez.",
+      result.text,
+    );
   }
   return { data: parsed.data, result };
 }

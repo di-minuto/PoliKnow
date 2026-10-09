@@ -23,6 +23,8 @@ export type AICompletionRequest = {
   temperature?: number;
   /** Versión del prompt; forma parte de la clave de caché. */
   promptVersion?: string;
+  /** Pedir al proveedor que responda solo JSON (si lo admite). */
+  json?: boolean;
 };
 
 export type AIUsage = {
@@ -37,4 +39,6 @@ export type AICompletionResult = {
   usage?: AIUsage;
   /** true si la respuesta viene de la caché y no ha costado tokens. */
   cached?: boolean;
+  /** true si el proveedor cortó la respuesta por llegar al máximo de tokens. */
+  truncated?: boolean;
 };

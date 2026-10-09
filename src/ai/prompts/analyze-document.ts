@@ -40,6 +40,6 @@ export const documentAnalysisSchema = z.object({
   summary: z.string().min(1),
   concepts: z.array(z.string()).max(20).default([]),
   topics: z.array(z.string()).default([]),
-  difficulty: z.number().min(1).max(5).optional(),
+  difficulty: z.coerce.number().min(1).max(5).optional().catch(undefined),
 });
 export type DocumentAnalysis = z.infer<typeof documentAnalysisSchema>;

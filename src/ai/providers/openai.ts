@@ -5,8 +5,11 @@ import { AIRequestError, postJson, type FetchLike } from "./http";
 export const OPENAI_DEFAULT_MODEL = "gpt-5-mini";
 export const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
+/** Tokens extra para el razonamiento de Gemini (cuenta dentro de max_tokens). */
+const GEMINI_THINKING_HEADROOM = 4096;
+
 type ChatResponse = {
-  choices?: { message?: { content?: string | null } }[];
+  choices?: { message?: { content?: string | null }; finish_reason?: string | null }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 };
 
@@ -32,7 +35,9 @@ export class OpenAIProvider implements AIProvider {
 
   async complete(request: AICompletionRequest): Promise<AICompletionResult> {
     const official = this.name === "openai";
-    const label = official ? "OpenAI" : "El proveedor de IA";
+    const gemini = this.name === "gemini";
+    const label = official ? "OpenAI" : gemini ? "Gemini" : "El proveedor de IA";
+    const maxTokens = request.maxTokens ?? 1500;
     const data = (await postJson(
       this.fetcher,
       label,
@@ -41,18 +46,28 @@ export class OpenAIProvider implements AIProvider {
       {
         model: this.model,
         // Los modelos nuevos de OpenAI usan max_completion_tokens; los compatibles, max_tokens.
-        [official ? "max_completion_tokens" : "max_tokens"]: request.maxTokens ?? 1500,
+        // En Gemini el «pensamiento» gasta del mismo máximo: se limita y se deja margen para que no corte la respuesta.
+        [official ? "max_completion_tokens" : "max_tokens"]: gemini ? maxTokens + GEMINI_THINKING_HEADROOM : maxTokens,
+        ...(gemini ? { reasoning_effort: "low" } : {}),
         ...(!official && request.temperature !== undefined ? { temperature: request.temperature } : {}),
+        ...(request.json && (official || gemini) ? { response_format: { type: "json_object" } } : {}),
         messages: [...(request.system ? [{ role: "system", content: request.system }] : []), ...request.messages],
       },
     )) as ChatResponse;
-    const text = data.choices?.[0]?.message?.content ?? "";
-    if (!text) throw new AIRequestError(`${label} ha devuelto una respuesta vacía.`);
+    const choice = data.choices?.[0];
+    const text = choice?.message?.content ?? "";
+    const truncated = choice?.finish_reason === "length";
+    if (!text) {
+      throw new AIRequestError(
+        truncated ? `${label} se ha quedado sin espacio antes de responder. Prueba con menos contenido.` : `${label} ha devuelto una respuesta vacía.`,
+      );
+    }
     return {
       text,
       provider: this.name,
       model: this.model,
       usage: { inputTokens: data.usage?.prompt_tokens ?? 0, outputTokens: data.usage?.completion_tokens ?? 0 },
+      ...(truncated ? { truncated } : {}),
     };
   }
 }

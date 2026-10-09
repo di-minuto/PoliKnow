@@ -97,6 +97,27 @@ describe("proveedores", () => {
     expect(body.max_tokens).toBe(1500);
   });
 
+  it("Gemini: razonamiento bajo, margen de tokens y modo JSON", async () => {
+    const { calls, fetcher } = recorder(200, { choices: [{ message: { content: "{}" }, finish_reason: "stop" }] });
+    const provider = new OpenAIProvider("k", "gemini-3.5-flash", "https://generativelanguage.googleapis.com/v1beta/openai", fetcher);
+    await provider.complete({ ...request, maxTokens: 900, json: true });
+    const body = JSON.parse(calls[0].init.body as string);
+    expect(body).toMatchObject({ reasoning_effort: "low", response_format: { type: "json_object" } });
+    expect(body.max_tokens).toBeGreaterThan(900);
+  });
+
+  it("avisa si la respuesta se cortó por largo", async () => {
+    const cut = recorder(200, { choices: [{ message: { content: '{"questions":[{"a"' }, finish_reason: "length" }] });
+    expect((await new OpenAIProvider("k", "m", "https://x.dev/v1", cut.fetcher).complete(request)).truncated).toBe(true);
+    const empty = recorder(200, { choices: [{ message: { content: null }, finish_reason: "length" }] });
+    await expect(new OpenAIProvider("k", "m", "https://x.dev/v1", empty.fetcher).complete(request)).rejects.toThrow(/sin espacio/);
+  });
+
+  it("el error 404 dice qué modelo no existe", async () => {
+    const { fetcher } = recorder(404, {});
+    await expect(new OpenAIProvider("k", "gemini-viejo", "https://x.dev/v1", fetcher).complete(request)).rejects.toThrow(/«gemini-viejo»/);
+  });
+
   it("los errores HTTP se traducen sin filtrar la clave", async () => {
     const { fetcher } = recorder(401, { error: "bad key secreta" });
     const error = await new AnthropicProvider("secreta", undefined, fetcher).complete(request).catch((e) => e);
@@ -112,6 +133,17 @@ describe("respuestas estructuradas", () => {
 
   it("extrae JSON de un bloque markdown", () => {
     expect(extractJson('Aquí tienes:\n```json\n{"a": 1}\n```')).toEqual({ a: 1 });
+  });
+
+  it("tolera texto alrededor, llaves en la explicación y comas sobrantes", () => {
+    expect(extractJson('Claro {aquí va}: {"a": [1, 2,], "b": "x}"}\nEspero que sirva.')).toEqual({ a: [1, 2], b: "x}" });
+    expect(extractJson('```JSON\n{"q": "comillas \\" y {"}\n```')).toEqual({ q: 'comillas " y {' });
+    expect(() => extractJson("no hay nada")).toThrow();
+  });
+
+  it("recupera lo completo de una respuesta cortada", () => {
+    expect(extractJson('{"questions":[{"a": 1}, {"b": 2}, {"c": "a medi')).toEqual({ questions: [{ a: 1 }, { b: 2 }] });
+    expect(extractJson('```json\n{"questions":[{"a": 1},')).toEqual({ questions: [{ a: 1 }] });
   });
 
   it("valida la respuesta con zod", async () => {
