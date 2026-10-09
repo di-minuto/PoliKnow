@@ -36,12 +36,18 @@ export const serverEnvSchema = z.object({
   AI_MODEL: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
+  /** Otra API compatible con OpenAI (Gemini, Groq, OpenRouter, Ollama…). */
+  AI_BASE_URL: z.url().optional(),
+  /** Tope de tokens al día (entrada + salida); 0 = sin tope. */
+  AI_DAILY_TOKEN_LIMIT: z.coerce.number().int().min(0).default(300_000),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
 export function getServerEnv(source: Record<string, string | undefined> = process.env): ServerEnv {
-  const parsed = serverEnvSchema.safeParse(source);
+  // Una variable vacía (AI_MODEL= en .env) cuenta como no puesta.
+  const defined = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== undefined && v.trim() !== ""));
+  const parsed = serverEnvSchema.safeParse(defined);
   if (!parsed.success) {
     throw new Error("Variables de entorno de servidor no válidas.\n" + z.prettifyError(parsed.error));
   }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, Flag, Hourglass, Minus, Trash2, X } from "lucide-react";
+import { ExplainButton } from "@/components/ai/explain-button";
 import { ExamRunner } from "@/components/practice/exam-runner";
 import { describeResponse } from "@/components/practice/response-view";
 import { QuickModeButton } from "@/components/practice/test-builder";
@@ -20,6 +21,7 @@ import type { Question } from "@/domain/questions/types";
 import { formatDateTime } from "@/lib/dates";
 import { selfGradeExamItemAction } from "@/server/actions/exams-practice";
 import { deleteAttemptAction } from "@/server/actions/practice";
+import { aiInfo } from "@/server/ai";
 import { getProfile } from "@/server/profile";
 import { loadQuestionOptions } from "@/server/question-options";
 import { getAttempt, type ItemRow } from "@/server/repositories/practice";
@@ -210,6 +212,7 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
   }
 
   // ------------------------------------------------------------ resultados
+  const aiEnabled = aiInfo().enabled;
   const summary = attempt.summary as {
     correct?: number;
     incorrect?: number;
@@ -402,6 +405,7 @@ export default async function AttemptPage({ params }: PageProps<"/tests/[attempt
                     <RichText text={q.explanation} />
                   </div>
                 )}
+                {aiEnabled && (itemResult(item) === "incorrect" || itemResult(item) === "partial") && <ExplainButton itemId={item.id} />}
                 {isPending && (
                   <form action={selfGradeExamItemAction} className="flex flex-col gap-2 rounded-lg bg-primary-soft p-3">
                     <input type="hidden" name="itemId" value={item.id} />

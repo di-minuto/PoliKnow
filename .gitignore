@@ -48,3 +48,4 @@ next-env.d.ts
 
 # worker de pdf.js (lo copia scripts/copy-pdf-worker.mjs)
 /public/pdfjs/
+/public/ocr/

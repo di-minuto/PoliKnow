@@ -33,7 +33,7 @@ type DocumentRow = {
   exam_session: string | null;
   notes: string | null;
   extraction_status: ExtractionStatus;
-  metadata: { extraction_error?: string; chunk_count?: number } | null;
+  metadata: { extraction_error?: string; chunk_count?: number; ocr?: boolean; ai_analysis?: DocumentAnalysisRecord } | null;
   created_at: string;
   document_topics: { topic_id: string }[];
   document_assessments: { assessment_id: string }[];
@@ -42,11 +42,23 @@ type DocumentRow = {
 const DOCUMENT_COLUMNS =
   "id, subject_id, document_type, title, storage_path, original_filename, mime_type, size_bytes, sha256, page_count, year, exam_session, notes, extraction_status, metadata, created_at, document_topics(topic_id), document_assessments(assessment_id)";
 
+/** Análisis con IA guardado en documents.metadata (no se vuelve a pedir). */
+export type DocumentAnalysisRecord = {
+  summary: string;
+  concepts: string[];
+  topicIds: string[];
+  difficulty?: number;
+  model: string;
+  at: string;
+};
+
 export type LibraryDocument = StudyDocument & {
   notes: string | null;
   createdAt: string;
   extractionError: string | null;
   chunkCount: number | null;
+  ocr: boolean;
+  analysis: DocumentAnalysisRecord | null;
 };
 
 const toDocument = (r: DocumentRow): LibraryDocument => ({
@@ -69,6 +81,8 @@ const toDocument = (r: DocumentRow): LibraryDocument => ({
   createdAt: r.created_at,
   extractionError: r.metadata?.extraction_error ?? null,
   chunkCount: r.metadata?.chunk_count ?? null,
+  ocr: r.metadata?.ocr ?? false,
+  analysis: r.metadata?.ai_analysis ?? null,
 });
 
 // ---------------------------------------------------------------- lectura
@@ -255,6 +269,31 @@ async function replaceDocumentLinks(documentId: string, topicIds: string[], asse
         .insert(assessmentIds.map((assessment_id) => ({ document_id: documentId, assessment_id }))),
     );
   }
+}
+
+/** Guarda el análisis de IA sin tocar el resto de metadata. */
+export async function saveDocumentAnalysis(id: string, analysis: DocumentAnalysisRecord): Promise<void> {
+  const db = await createClient();
+  const current = check<{ metadata: Record<string, unknown> | null }[]>(
+    "Leer documento",
+    await db.from("documents").select("metadata").eq("id", id).limit(1),
+  );
+  check(
+    "Guardar análisis",
+    await db.from("documents").update({ metadata: { ...(current[0]?.metadata ?? {}), ai_analysis: analysis } }).eq("id", id),
+  );
+}
+
+/** Añade temas al documento (sin quitar los que ya tenía). */
+export async function addDocumentTopics(documentId: string, topicIds: string[]): Promise<void> {
+  if (topicIds.length === 0) return;
+  const db = await createClient();
+  check(
+    "Vincular temas",
+    await db
+      .from("document_topics")
+      .upsert(topicIds.map((topic_id) => ({ document_id: documentId, topic_id })), { onConflict: "document_id,topic_id", ignoreDuplicates: true }),
+  );
 }
 
 /** Borra el archivo de Storage y la fila (los fragmentos y vínculos caen en cascada). */

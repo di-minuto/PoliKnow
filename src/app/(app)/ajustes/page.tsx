@@ -6,7 +6,8 @@ import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Field } from "@/components/ui/field";
 import { buttonClass, cardClass, inputClass } from "@/components/ui/styles";
-import { getAIProvider } from "@/ai";
+import { AIDisabled } from "@/components/ai/ai-disabled";
+import { aiInfo, aiUsage } from "@/server/ai";
 import { formatDayKey, toLocalDayKey } from "@/lib/dates";
 import { addBlockedDayAction, removeBlockedDayAction, saveAvailabilityAction } from "@/server/actions/planning";
 import { getCurrentUser } from "@/server/auth";
@@ -30,7 +31,8 @@ export default async function SettingsPage() {
   const [user, profile] = await Promise.all([getCurrentUser(), getProfile()]);
   const today = toLocalDayKey(new Date(), profile.timezone);
   const [availability, blockedDays] = await Promise.all([getWeeklyAvailability(), listBlockedDays(today)]);
-  const ai = getAIProvider();
+  const ai = aiInfo();
+  const usage = ai.enabled ? await aiUsage() : null;
   const weeklyHours = availability.reduce((a, b) => a + b, 0) / 60;
 
   return (
@@ -101,11 +103,29 @@ export default async function SettingsPage() {
         </section>
 
         <section>
+          <h2 className="mb-1 text-lg font-semibold">Inteligencia artificial</h2>
+          <p className="mb-3 text-sm text-muted">
+            Las respuestas se guardan: repetir la misma petición no gasta nada. Las claves se configuran en Vercel, no aquí.
+          </p>
+          {ai.enabled && usage ? (
+            <dl className={`${cardClass} divide-y divide-border`} aria-label="Uso de la IA">
+              <Row label="Proveedor" value={`${ai.provider} · ${ai.model}`} />
+              <Row
+                label="Hoy"
+                value={`${usage.today.tokens.toLocaleString("es-ES")} tokens${ai.dailyLimit ? ` de ${ai.dailyLimit.toLocaleString("es-ES")}` : ""} · ${usage.today.calls} ${usage.today.calls === 1 ? "llamada" : "llamadas"}`}
+              />
+              <Row label="Este mes" value={`${usage.month.tokens.toLocaleString("es-ES")} tokens · ${usage.month.calls} llamadas`} />
+            </dl>
+          ) : (
+            <AIDisabled feature="El asistente, generar preguntas y explicar fallos" reason={ai.reason} />
+          )}
+        </section>
+
+        <section>
           <h2 className="mb-3 text-lg font-semibold">Cuenta</h2>
           <dl className={`${cardClass} divide-y divide-border`}>
             <Row label="Email" value={user.email ?? "—"} />
             <Row label="Zona horaria" value={profile.timezone} />
-            <Row label="Asistente IA" value={ai.enabled ? `Activado (${ai.name})` : "Desactivado"} />
           </dl>
           <form action={signOut} className="mt-4">
             <button type="submit" className={buttonClass.secondary}>

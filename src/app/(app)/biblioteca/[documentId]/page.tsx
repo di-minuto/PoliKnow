@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, ExternalLink, Trash2 } from "lucide-react";
+import { Download, ExternalLink, Sparkles, Trash2 } from "lucide-react";
 import { DocumentFields } from "@/components/documents/document-fields";
 import { ExtractionBadge, formatSize } from "@/components/documents/document-meta";
+import { DocumentAnalysis } from "@/components/ai/document-analysis";
+import { OcrButton } from "@/components/documents/ocr-button";
 import { ReprocessButton } from "@/components/documents/reprocess-button";
 import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -13,6 +15,7 @@ import { locationLabel } from "@/domain/documents/schemas";
 import { detectFormat } from "@/documents/format";
 import { formatDateTime } from "@/lib/dates";
 import { deleteDocumentAction, updateDocumentAction } from "@/server/actions/documents";
+import { aiInfo } from "@/server/ai";
 import { loadLibraryOptions } from "@/server/library-options";
 import { getProfile } from "@/server/profile";
 import { getDocument, listChunks, signedUrl } from "@/server/repositories/documents";
@@ -60,6 +63,9 @@ export default async function DocumentPage({ params, searchParams }: PageProps<"
   const topicNames = options.topics.filter((t) => doc.topicIds.includes(t.id)).map((t) => t.name);
   const assessmentNames = options.assessments.filter((a) => doc.assessmentIds.includes(a.id)).map((a) => a.name);
   const isSlides = format === "pptx";
+  const ai = aiInfo();
+  const hasText = (doc.chunkCount ?? text.total) > 0;
+  const canOcr = format === "image" || (format === "pdf" && (doc.chunkCount === 0 || doc.ocr));
 
   return (
     <>
@@ -130,6 +136,22 @@ export default async function DocumentPage({ params, searchParams }: PageProps<"
           </dl>
         </section>
 
+        {ai.enabled && (
+          <DocumentAnalysis
+            documentId={doc.id}
+            analysis={doc.analysis}
+            topicNames={new Map(options.topics.filter((t) => t.subjectId === doc.subjectId).map((t) => [t.id, t.name]))}
+            assignedTopicIds={doc.topicIds}
+            hasText={hasText}
+          />
+        )}
+        {ai.enabled && hasText && (
+          <Link href={`/preguntas/generar?asignatura=${doc.subjectId}&documento=${doc.id}`} className={`${buttonClass.secondary} self-start`}>
+            <Sparkles className="size-4" aria-hidden />
+            Generar preguntas de este documento
+          </Link>
+        )}
+
         <Disclosure summary="Editar datos">
           <ActionForm action={updateDocumentAction} successMessage="Guardado.">
             <input type="hidden" name="id" value={doc.id} />
@@ -158,7 +180,7 @@ export default async function DocumentPage({ params, searchParams }: PageProps<"
             <ExtractionBadge status={doc.extractionStatus} noText={doc.chunkCount === 0} />
           </div>
           {doc.extractionError && <p className="text-sm text-danger">{doc.extractionError}</p>}
-          {format !== "image" && (
+          {format !== "image" && !doc.ocr && (
             <ReprocessButton
               documentId={doc.id}
               storagePath={doc.storagePath}
@@ -166,8 +188,8 @@ export default async function DocumentPage({ params, searchParams }: PageProps<"
               mimeType={doc.mimeType}
             />
           )}
-          {format === "image" && (
-            <p className="text-sm text-muted">Las imágenes se podrán leer con OCR cuando actives la IA (Fase 9).</p>
+          {canOcr && (
+            <OcrButton documentId={doc.id} storagePath={doc.storagePath} filename={filename} mimeType={doc.mimeType} pdf={format === "pdf"} />
           )}
 
           {text.chunks.length > 0 && (

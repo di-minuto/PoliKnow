@@ -6,7 +6,7 @@ export class DisabledProvider implements AIProvider {
   readonly model = "none";
   readonly enabled = false;
 
-  constructor(private readonly reason?: string) {}
+  constructor(readonly reason?: string) {}
 
   async complete(): Promise<never> {
     throw new AIDisabledError(this.reason);

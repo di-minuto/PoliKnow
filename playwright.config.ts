@@ -19,15 +19,26 @@ export default defineConfig({
     launchOptions: executablePath ? { executablePath } : undefined,
   },
   projects: [{ name: "móvil", use: { ...devices["Pixel 7"], launchOptions: executablePath ? { executablePath } : undefined } }],
-  webServer: {
-    command: "npx next dev -p 3100",
-    url: "http://localhost:3100/login",
-    reuseExistingServer: true,
-    timeout: 120_000,
-    env: {
-      NEXT_PUBLIC_SUPABASE_URL: process.env.E2E_SUPABASE_URL ?? "http://127.0.0.1:54321",
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.E2E_SUPABASE_KEY ?? "",
-      AI_PROVIDER: "none",
+  webServer: [
+    {
+      // IA simulada (compatible con OpenAI): prueba el camino real sin red ni coste.
+      command: "node tests/e2e/fake-ai.mjs",
+      url: "http://127.0.0.1:3199/calls",
+      reuseExistingServer: true,
     },
-  },
+    {
+      command: "npx next dev -p 3100",
+      url: "http://localhost:3100/login",
+      reuseExistingServer: true,
+      timeout: 120_000,
+      env: {
+        NEXT_PUBLIC_SUPABASE_URL: process.env.E2E_SUPABASE_URL ?? "http://127.0.0.1:54321",
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.E2E_SUPABASE_KEY ?? "",
+        AI_PROVIDER: "openai",
+        OPENAI_API_KEY: "e2e-key",
+        AI_BASE_URL: "http://127.0.0.1:3199/v1",
+        AI_MODEL: "modelo-simulado",
+      },
+    },
+  ],
 });

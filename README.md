@@ -18,7 +18,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 6 | Simulador de exámenes | ✅ Hecha |
 | 7 | Planificador, pantalla HOY y sesiones | ✅ Hecha |
 | 8 | Dashboard y estadísticas | ✅ |
-| 9 | IA y procesamiento de documentos | Pendiente |
+| 9 | IA y procesamiento de documentos | ✅ |
 | 10 | PWA y optimización móvil | Pendiente |
 | 11 | Backups, importación/exportación | Pendiente |
 
@@ -180,6 +180,34 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
   los débiles enlazan a un test de ese tema.
 - Cálculos en `src/domain/stats` (funciones puras con tests) y `src/server/stats.ts`.
 
+### Fase 9: qué incluye
+
+- **Proveedores de IA** sin SDK (`src/ai/providers`): Claude (API de Messages) y OpenAI o
+  cualquier API compatible (Gemini, Groq, OpenRouter, Ollama…) con `AI_BASE_URL`. Sin IA
+  configurada todo sigue funcionando y los botones de IA no aparecen.
+- **Ahorro**: cada respuesta se guarda en `ai_cache` por hash (proveedor + modelo + versión
+  del prompt + entrada), así repetir algo no cuesta nada; tope diario de tokens
+  (`AI_DAILY_TOKEN_LIMIT`, 300 000 por defecto) y consumo de hoy y del mes en Ajustes.
+- **Prompts versionados** en `src/ai/prompts` (funciones puras con tests).
+- **Generar preguntas** (`/preguntas/generar`) a partir de un documento, un tema o la
+  asignatura. La IA responde en el formato de importación JSON y se valida con el mismo
+  código. Siempre entran como «Generada por IA» y «Por revisar» (nunca como oficiales) y no
+  salen en los tests hasta que las apruebes; se pueden aprobar en bloque.
+- **Explícame el fallo** en los resultados de un test: explica el error con tus apuntes.
+- **Analizar documento**: resumen, conceptos clave y temas propuestos (se guardan en el
+  documento y se pueden asignar con un botón).
+- **Asistente** (`/asistente`): busca en tus documentos con la búsqueda de texto de Postgres,
+  responde citando la fuente ([1] enlaza al fragmento exacto) y, si preguntas por tu plan, tus
+  temas flojos o tus fallos, usa tus datos de estudio. Las preguntas del banco que cita llevan
+  su procedencia. Las conversaciones se guardan.
+- **OCR gratis** en el navegador (tesseract.js, español) para PDFs escaneados e imágenes:
+  «Reconocer texto (OCR)» en la ficha del documento. El motor se sirve desde `public/ocr`
+  (lo copia `npm install`), sin CDN.
+- Sin migraciones nuevas. Decisión: **sin embeddings** por ahora. Claude no tiene API de
+  embeddings y la búsqueda de texto completo (con tildes y raíces en español) funciona bien
+  con apuntes. Se puede añadir pgvector más adelante si hace falta.
+- Tests e2e con una IA simulada compatible con OpenAI (`tests/e2e/fake-ai.mjs`).
+
 ## Puesta en marcha
 
 Requisitos: Node 20+ y una cuenta gratuita de [Supabase](https://supabase.com).
@@ -207,7 +235,13 @@ Requisitos: Node 20+ y una cuenta gratuita de [Supabase](https://supabase.com).
 
 Importa el repositorio en Vercel, añade las mismas variables de entorno y despliega.
 Las claves de IA (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) solo se configuran en Vercel o en
-`.env.local`, nunca en el código.
+`.env.local`, nunca en el código. Opciones (la IA es opcional):
+
+| Proveedor | Variables |
+|---|---|
+| Claude | `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY` (modelo por defecto `claude-haiku-5-5`) |
+| OpenAI | `AI_PROVIDER=openai`, `OPENAI_API_KEY` (modelo por defecto `gpt-5-mini`) |
+| Gemini (tiene capa gratuita) | `AI_PROVIDER=openai`, `OPENAI_API_KEY` = clave de Google AI Studio, `AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`, `AI_MODEL=gemini-2.5-flash` |
 
 ## Scripts
 

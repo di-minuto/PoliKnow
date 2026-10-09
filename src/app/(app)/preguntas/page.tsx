@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileJson, Plus, Search } from "lucide-react";
+import { Check, FileJson, Plus, Search, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SourceBadge } from "@/components/questions/source-badge";
+import { SubmitButton } from "@/components/ui/action-form";
 import { SelectNav } from "@/components/ui/select-nav";
 import { buttonClass, cardClass, inputClass } from "@/components/ui/styles";
 import { descendantIds } from "@/domain/academic/logic";
 import { REVIEW_STATUS_LABELS } from "@/domain/questions/schemas";
 import { SOURCE_TYPES, SOURCE_TYPE_LABELS, type SourceType } from "@/domain/questions/types";
+import { approveQuestionsAction } from "@/server/actions/ai";
+import { aiInfo } from "@/server/ai";
 import { listTopics } from "@/server/repositories/academic";
 import { QUESTIONS_PAGE_SIZE, listQuestions } from "@/server/repositories/questions";
 import { loadQuestionOptions } from "@/server/question-options";
@@ -72,6 +75,9 @@ export default async function QuestionsPage({ searchParams }: PageProps<"/pregun
   const topics = options.topics.filter((t) => t.subjectId === subjectId);
   const pages = Math.ceil(total / QUESTIONS_PAGE_SIZE);
   const filtered = Object.values(current).some(Boolean);
+  const aiEnabled = aiInfo().enabled;
+  const created = Number(one(raw.nuevas) ?? 0) || 0;
+  const drafts = questions.filter((q) => q.reviewStatus === "draft");
 
   return (
     <>
@@ -149,11 +155,41 @@ export default async function QuestionsPage({ searchParams }: PageProps<"/pregun
         <Link href={href({ ...current, archivadas: archived ? undefined : "1" })} className={chip(archived)}>
           Archivadas
         </Link>
-        <Link href="/preguntas/importar" className="ml-auto inline-flex items-center gap-1 px-1 py-1.5 text-primary underline">
-          <FileJson className="size-4" aria-hidden />
-          Importar JSON
-        </Link>
+        <span className="ml-auto flex gap-3">
+          {aiEnabled && (
+            <Link
+              href={`/preguntas/generar${subjectId ? `?asignatura=${subjectId}${topicId ? `&tema=${topicId}` : ""}` : ""}`}
+              className="inline-flex items-center gap-1 px-1 py-1.5 text-primary underline"
+            >
+              <Sparkles className="size-4" aria-hidden />
+              Generar con IA
+            </Link>
+          )}
+          <Link href="/preguntas/importar" className="inline-flex items-center gap-1 px-1 py-1.5 text-primary underline">
+            <FileJson className="size-4" aria-hidden />
+            Importar JSON
+          </Link>
+        </span>
       </div>
+
+      {created > 0 && (
+        <p role="status" className="mb-3 rounded-lg bg-success-soft px-3 py-2 text-sm text-success">
+          {created === 1 ? "Se ha generado 1 pregunta" : `Se han generado ${created} preguntas`}. Revísalas antes de aprobarlas: hasta
+          entonces no salen en los tests.
+        </p>
+      )}
+
+      {pending && drafts.length > 0 && (
+        <form action={approveQuestionsAction} className="mb-3">
+          {drafts.map((q) => (
+            <input key={q.id} type="hidden" name="id" value={q.id} />
+          ))}
+          <SubmitButton className={buttonClass.secondary} pendingLabel="Aprobando…">
+            <Check className="size-4" aria-hidden />
+            Aprobar {drafts.length === 1 ? "esta pregunta" : `estas ${drafts.length} preguntas`}
+          </SubmitButton>
+        </form>
+      )}
 
       {questions.length === 0 ? (
         <div className={`${cardClass} flex flex-col items-start gap-3 p-5`}>

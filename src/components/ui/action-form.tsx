@@ -17,11 +17,13 @@ export function ActionForm({
   submitLabel = "Guardar",
   resetOnSuccess = false,
   successMessage,
+  pendingLabel,
   className = "flex flex-col gap-4",
 }: {
   action: FormAction;
   children: ReactNode;
   submitLabel?: string;
+  pendingLabel?: string;
   resetOnSuccess?: boolean;
   successMessage?: string;
   className?: string;
@@ -47,17 +49,25 @@ export function ActionForm({
         </p>
       )}
       <div>
-        <SubmitButton>{submitLabel}</SubmitButton>
+        <SubmitButton pendingLabel={pendingLabel}>{submitLabel}</SubmitButton>
       </div>
     </form>
   );
 }
 
-export function SubmitButton({ children, className = buttonClass.primary }: { children: ReactNode; className?: string }) {
+export function SubmitButton({
+  children,
+  className = buttonClass.primary,
+  pendingLabel = "Guardando…",
+}: {
+  children: ReactNode;
+  className?: string;
+  pendingLabel?: string;
+}) {
   const { pending } = useFormStatus();
   return (
     <button type="submit" disabled={pending} className={className}>
-      {pending ? "Guardando…" : children}
+      {pending ? pendingLabel : children}
     </button>
   );
 }

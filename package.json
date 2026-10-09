@@ -15,11 +15,12 @@
     "db:types": "supabase gen types typescript --linked > src/types/database.ts",
     "test:e2e": "playwright test",
     "stack:local": "scripts/local-stack/start.sh",
-    "postinstall": "node scripts/copy-pdf-worker.mjs"
+    "postinstall": "node scripts/copy-browser-assets.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
+    "@tesseract.js-data/spa": "^1.0.0",
     "jszip": "^3.10.2",
     "lucide-react": "^1.53.0",
     "next": "16.4.0",
@@ -27,6 +28,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
