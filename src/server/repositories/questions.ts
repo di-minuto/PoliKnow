@@ -141,6 +141,13 @@ export async function getQuestion(id: string): Promise<Question | null> {
   return rows[0] ? toQuestion(rows[0]) : null;
 }
 
+export async function getQuestionsByIds(ids: string[]): Promise<Question[]> {
+  if (ids.length === 0) return [];
+  const db = await createClient();
+  const rows = check<QuestionRow[]>("Leer preguntas", await db.from("questions").select(QUESTION_COLUMNS).in("id", ids));
+  return rows.map(toQuestion);
+}
+
 /** Recuento por asignatura (sin archivadas). */
 export async function countQuestions(subjectId: string): Promise<number> {
   const db = await createClient();

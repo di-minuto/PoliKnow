@@ -14,7 +14,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 2 | Asignaturas, parciales y temas | ✅ Hecha |
 | 3 | Biblioteca y subida de documentos | ✅ Hecha |
 | 4 | Banco de preguntas | ✅ Hecha |
-| 5 | Tests | Pendiente |
+| 5 | Tests y repaso espaciado | ✅ Hecha |
 | 6 | Exámenes | Pendiente |
 | 7 | Planificador | Pendiente |
 | 8 | Dashboard y estadísticas | Pendiente |
@@ -99,6 +99,28 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 - Corrección automática de los tipos que lo permiten (`src/domain/questions/grading.ts`), lista
   para los tests de la Fase 5. Los números admiten coma decimal.
 - Sin migraciones nuevas: usa las tablas de la Fase 1.
+
+### Fase 5: qué incluye
+
+- **Tests** (`/tests`): modos automáticos con un toque (**test rápido** de 10 preguntas
+  de lo que estás estudiando, **repaso de fallos** y **repaso inteligente**) y un
+  generador para elegir asignatura, temas o un parcial, número de preguntas,
+  dificultad, tipos y procedencia. Accesos «Hacer test» desde la asignatura y desde
+  cada parcial.
+- **Hacer el test**: una pregunta por pantalla, corrección al momento en el servidor
+  (la solución no llega al navegador antes de responder), navegación libre, marcar
+  preguntas y retomar un test a medias. Teoría, problemas y código se autoevalúan
+  (Mal / Regular / Bien) tras ver la respuesta modelo.
+- **Resultados**: nota sobre 10, aciertos/fallos/regular/sin responder, tiempo, nota
+  por tema, qué repasar y botón «Repasar fallos»; cada pregunta con tu respuesta,
+  la solución, la explicación y su procedencia. Historial de tests.
+- **Repaso espaciado** (`src/domain/srs`): modelo tipo FSRS por pregunta. Un fallo
+  acorta mucho el intervalo; los aciertos seguidos lo alargan (≈1,5 → 3 → 7 → 14 →
+  27 días…). El repaso inteligente prioriza lo que está a punto de olvidarse y los
+  temas con peor dominio; el test de parcial reparte las preguntas según el peso de
+  cada tema. El dominio de cada tema se recalcula al terminar cada test.
+- Sin migraciones nuevas: usa las tablas `attempts`, `attempt_items`,
+  `question_progress` y `topic_progress` de la Fase 1.
 
 ## Puesta en marcha
 

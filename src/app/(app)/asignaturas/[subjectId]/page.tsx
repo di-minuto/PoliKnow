@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowDown, ArrowUp, BookOpen, FileUp, Library, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, FileUp, Library, ListChecks, Pencil, Trash2 } from "lucide-react";
 import { AssessmentFormFields } from "@/components/academic/assessment-form-fields";
 import { CountdownBadge } from "@/components/academic/countdown-badge";
 import { SubjectFormFields } from "@/components/academic/subject-form-fields";
@@ -153,6 +153,12 @@ export default async function SubjectPage({ params }: Props) {
               <BookOpen className="size-4" aria-hidden />
               {questionCount === 1 ? "1 pregunta" : `${questionCount} preguntas`}
             </Link>
+            {questionCount > 0 && (
+              <Link href={`/tests?asignatura=${subjectId}`} className={buttonClass.primary}>
+                <ListChecks className="size-4" aria-hidden />
+                Hacer test
+              </Link>
+            )}
           </div>
         </section>
 

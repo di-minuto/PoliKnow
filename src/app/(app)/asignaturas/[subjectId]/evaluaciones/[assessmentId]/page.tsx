@@ -6,7 +6,7 @@ import { CountdownBadge } from "@/components/academic/countdown-badge";
 import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Disclosure } from "@/components/ui/disclosure";
-import { cardClass, inputClass } from "@/components/ui/styles";
+import { buttonClass, cardClass, inputClass } from "@/components/ui/styles";
 import { buildTopicTree, flattenTree, topicShares } from "@/domain/academic/logic";
 import { daysUntil, formatDateTime } from "@/lib/dates";
 import { deleteAssessmentAction, saveAssessmentTopicsAction, updateAssessmentAction } from "@/server/actions/academic";
@@ -66,6 +66,9 @@ export default async function AssessmentPage({ params }: Props) {
           {assessment.examAt ? ` · ${formatDateTime(assessment.examAt, profile.timezone)}` : " · sin fecha"}
           {assessment.durationMinutes ? ` · ${assessment.durationMinutes} min` : ""}
         </p>
+        <Link href={`/tests?asignatura=${subject.id}&parcial=${assessment.id}`} className={`${buttonClass.secondary} mt-3`}>
+          Hacer test de este parcial
+        </Link>
       </header>
 
       <div className="flex flex-col gap-8">
