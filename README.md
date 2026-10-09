@@ -17,7 +17,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 5 | Tests y repaso espaciado | ✅ Hecha |
 | 6 | Simulador de exámenes | ✅ Hecha |
 | 7 | Planificador, pantalla HOY y sesiones | ✅ Hecha |
-| 8 | Dashboard y estadísticas | Pendiente |
+| 8 | Dashboard y estadísticas | ✅ |
 | 9 | IA y procesamiento de documentos | Pendiente |
 | 10 | PWA y optimización móvil | Pendiente |
 | 11 | Backups, importación/exportación | Pendiente |
@@ -163,6 +163,22 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 - **Plan** (`/plan`): los próximos días con lo planificado frente al tiempo disponible,
   días de examen, temario visto por parcial, saltar tareas y recalcular.
 - Sin migraciones nuevas: usa `plan_tasks`, `study_sessions` y `topic_progress`.
+
+### Fase 8: qué incluye
+
+- **Estadísticas** (`/estadisticas`): horas de esta semana y en total, tests hechos,
+  nota media con su tendencia (últimos 5 frente a los 5 anteriores) y % de aciertos.
+- **Preparación estimada** de cada examen pendiente (p. ej. «CPA Parcial 1: 72 %»).
+  No depende solo del tiempo: combina dominio en tests (40 %), nota de los últimos
+  simulacros o exámenes (25 %), temario estudiado (20 %) y repasos al día (15 %),
+  ponderado por el peso de cada tema en el parcial. Si un componente no tiene datos,
+  su peso se reparte entre los demás. Se ve el desglose y los días que faltan.
+- **Gráficas** en SVG propio (sin librerías, ligeras en el móvil): horas por día de las
+  últimas 4 semanas y evolución de las notas (simulacros con punto relleno).
+- **Progreso por asignatura y por tema**: temario visto, dominio, horas y aciertos.
+- **Temas fuertes y débiles** (≥ 70 % y < 50 % de dominio con al menos 3 respuestas);
+  los débiles enlazan a un test de ese tema.
+- Cálculos en `src/domain/stats` (funciones puras con tests) y `src/server/stats.ts`.
 
 ## Puesta en marcha
 

@@ -115,12 +115,14 @@ export function UploadForm({ options, defaultSubjectId }: { options: LibraryOpti
       }
     }
 
-    await revalidateLibraryAction();
-    router.refresh();
-    setBusy(false);
+    // Se vacía antes de refrescar la biblioteca: si eliges otro archivo
+    // mientras tanto, no se pierde.
     setFiles([]);
     const input = formRef.current?.querySelector<HTMLInputElement>('input[type="file"]');
     if (input) input.value = "";
+    await revalidateLibraryAction();
+    router.refresh();
+    setBusy(false);
   }
 
   if (options.subjects.length === 0) {
