@@ -19,7 +19,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 7 | Planificador, pantalla HOY y sesiones | ✅ Hecha |
 | 8 | Dashboard y estadísticas | ✅ |
 | 9 | IA y procesamiento de documentos | ✅ |
-| 10 | PWA y optimización móvil | Pendiente |
+| 10 | PWA y optimización móvil | ✅ |
 | 11 | Backups, importación/exportación | Pendiente |
 
 ### Fase 1: qué incluye
@@ -207,6 +207,26 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
   embeddings y la búsqueda de texto completo (con tildes y raíces en español) funciona bien
   con apuntes. Se puede añadir pgvector más adelante si hace falta.
 - Tests e2e con una IA simulada compatible con OpenAI (`tests/e2e/fake-ai.mjs`).
+
+### Fase 10: qué incluye
+
+- **Service worker propio** (`public/sw.js`, sin dependencias). Los estáticos (JS, CSS, pdf.js,
+  OCR, iconos) se sirven primero de la caché. Las páginas van primero a la red y guardan una
+  copia: **sin conexión ves lo último que abriste** (Hoy, plan, apuntes…). Lo que nunca
+  abriste muestra la página «Sin conexión» (`/offline`). Solo se registra en producción.
+- **Aviso fijo «Sin conexión»** en toda la app.
+- **Simulacros sin red**: si se corta la conexión, las respuestas se guardan en el móvil, puedes
+  seguir y se envían solas al volver la red; entregar espera a que estén todas enviadas. Los
+  tests normales necesitan red porque se corrigen en el servidor (la solución no llega antes
+  al móvil).
+- **Instalar la app**: tarjeta en «Más» con botón «Instalar» (Android, Chrome, Edge) o los
+  pasos en iPhone. El manifest tiene accesos directos a Hoy, Tests, Plan y Asistente.
+- **Pantalla encendida** mientras corre el cronómetro de una sesión o durante un simulacro.
+- Esqueleto de carga entre páginas, márgenes seguros (notch) y comprobación de que ninguna
+  página principal es más ancha que la pantalla del móvil.
+- **Privacidad**: al cerrar sesión se borran del dispositivo las páginas guardadas.
+- e2e contra el build de producción, con un proxy que corta la red de verdad
+  (`tests/e2e/toggle-proxy.mjs`), porque Playwright no deja sin red al service worker.
 
 ## Puesta en marcha
 

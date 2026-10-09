@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Clock, Flag, Loader2 } from "lucide-react";
+import { useWakeLock } from "@/components/pwa/use-wake-lock";
 import { RichText } from "@/components/questions/rich-text";
 import { SourceBadge } from "@/components/questions/source-badge";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -11,6 +12,7 @@ import { bodyKind, optionLetter } from "@/domain/questions/body";
 import { finishAttemptAction, flagItemAction } from "@/server/actions/practice";
 import { saveExamAnswerAction } from "@/server/actions/exams-practice";
 import { fromResponse, toResponse, type Draft } from "./draft";
+import { readPending, writePending, type PendingAnswer } from "./offline-answers";
 import type { ExamItem } from "./types";
 
 const fmtPoints = (n: number) => String(n).replace(".", ",");
@@ -48,10 +50,13 @@ export function ExamRunner({
   const [flags, setFlags] = useState<Record<string, boolean>>(() => Object.fromEntries(items.map((i) => [i.itemId, i.flagged])));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Respuestas guardadas solo en el dispositivo (sin conexión), pendientes de enviar.
+  const [pending, setPending] = useState<Record<string, PendingAnswer>>({});
   const [now, setNow] = useState<number | null>(null);
   const shownAt = useRef<number | null>(null);
   const finishForm = useRef<HTMLFormElement>(null);
   const autoSubmitted = useRef(false);
+  useWakeLock(true);
 
   const item = items[index];
   const q = item.question;
@@ -76,6 +81,45 @@ export function ExamRunner({
     shownAt.current = Date.now();
   }, [index]);
 
+  /** Envía lo que quedó guardado en el dispositivo. true si ya no queda nada pendiente. */
+  async function flushPending(): Promise<boolean> {
+    const queued = readPending(attemptId);
+    for (const [itemId, answer] of Object.entries(queued)) {
+      let result: { ok: true } | { ok: false; error: string } | null;
+      try {
+        result = await saveExamAnswerAction({ itemId, ...answer });
+      } catch {
+        result = null; // sigue sin red
+      }
+      if (result === null) break;
+      if (!result.ok) setError(result.error);
+      delete queued[itemId];
+      writePending(attemptId, queued);
+    }
+    setPending({ ...queued });
+    return Object.keys(queued).length === 0;
+  }
+
+  // Al abrir (p. ej. tras recargar sin red) se recuperan las respuestas del
+  // dispositivo; al volver la conexión se envían.
+  useEffect(() => {
+    const restore = setTimeout(() => {
+      const queued = readPending(attemptId);
+      if (Object.keys(queued).length === 0) return;
+      setPending(queued);
+      setDrafts((all) => ({ ...all, ...Object.fromEntries(Object.entries(queued).map(([id, a]) => [id, fromResponse(a.response)])) }));
+      setAnswered((all) => ({ ...all, ...Object.fromEntries(Object.keys(queued).map((id) => [id, true])) }));
+      if (navigator.onLine) void flushPending();
+    }, 0);
+    const online = () => void flushPending();
+    window.addEventListener("online", online);
+    return () => {
+      clearTimeout(restore);
+      window.removeEventListener("online", online);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
+  }, [attemptId]);
+
   // Se acaba el tiempo: se entrega solo.
   useEffect(() => {
     if (remaining === 0 && !autoSubmitted.current) {
@@ -97,18 +141,24 @@ export function ExamRunner({
   async function saveCurrent(): Promise<boolean> {
     if (!dirty[item.itemId]) return true;
     const response = toResponse(kind, draft);
+    const answer = { response, timeSpentSeconds: secondsSince(shownAt.current) };
+    const filled = response !== null && !(response.kind === "text" && response.value.trim() === "");
     setSaving(true);
-    const result = await saveExamAnswerAction({
-      itemId: item.itemId,
-      response,
-      timeSpentSeconds: secondsSince(shownAt.current),
-    }).catch(() => ({ ok: false as const, error: "Sin conexión. Inténtalo de nuevo." }));
+    const result = navigator.onLine ? await saveExamAnswerAction({ itemId: item.itemId, ...answer }).catch(() => null) : null;
     setSaving(false);
+    if (result === null) {
+      // Sin red: se queda en el dispositivo y se envía al volver la conexión.
+      const queued = { ...readPending(attemptId), [item.itemId]: answer };
+      writePending(attemptId, queued);
+      setPending(queued);
+      setAnswered((all) => ({ ...all, [item.itemId]: filled }));
+      setDirty((all) => ({ ...all, [item.itemId]: false }));
+      return true;
+    }
     if (!result.ok) {
       setError(result.error);
       return false;
     }
-    const filled = response !== null && !(response.kind === "text" && response.value.trim() === "");
     setAnswered((all) => ({ ...all, [item.itemId]: filled }));
     setDirty((all) => ({ ...all, [item.itemId]: false }));
     return true;
@@ -158,6 +208,11 @@ export function ExamRunner({
             ref={finishForm}
             action={async (formData) => {
               await saveCurrent();
+              if (!(await flushPending())) {
+                setError("Sin conexión: tus respuestas están guardadas en el móvil. Entrega cuando vuelva la red.");
+                autoSubmitted.current = false;
+                return;
+              }
               await finishAttemptAction(formData);
             }}
           >
@@ -171,6 +226,13 @@ export function ExamRunner({
           <div className="h-full bg-primary transition-all" style={{ width: `${(answeredCount / items.length) * 100}%` }} />
         </div>
       </div>
+
+      {Object.keys(pending).length > 0 && (
+        <p role="status" className="rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning">
+          {Object.keys(pending).length === 1 ? "1 respuesta guardada" : `${Object.keys(pending).length} respuestas guardadas`} en el
+          dispositivo. Se enviarán al volver la conexión.
+        </p>
+      )}
 
       <p className="text-xs text-muted">
         {penalty > 0 ? `Cada fallo resta ${fmtPoints(Math.round(penalty * 100) / 100)} de lo que vale la pregunta. ` : "Los fallos no restan. "}

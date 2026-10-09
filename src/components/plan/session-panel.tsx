@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Loader2, Pause, Play, RotateCcw } from "lucide-react";
+import { useWakeLock } from "@/components/pwa/use-wake-lock";
 import { buttonClass, cardClass, inputClass } from "@/components/ui/styles";
 import { formatClock } from "@/domain/practice/exam";
 import { COMPLETION, COMPLETION_LABELS, DIFFICULTY_LABELS } from "@/domain/scheduler/session";
@@ -54,6 +55,7 @@ export function SessionPanel({ taskId, plannedMinutes, topicName }: { taskId: st
   };
   const seconds = elapsed(saved, now);
   const running = saved.runningSince !== null;
+  useWakeLock(running);
   const target = plannedMinutes * 60;
 
   function toggle() {

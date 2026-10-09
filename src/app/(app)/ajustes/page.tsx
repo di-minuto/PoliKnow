@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { X } from "lucide-react";
-import { signOut } from "@/app/(auth)/login/actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Field } from "@/components/ui/field";
 import { buttonClass, cardClass, inputClass } from "@/components/ui/styles";
 import { AIDisabled } from "@/components/ai/ai-disabled";
+import { SignOutButton } from "@/components/pwa/sign-out-button";
 import { aiInfo, aiUsage } from "@/server/ai";
 import { formatDayKey, toLocalDayKey } from "@/lib/dates";
 import { addBlockedDayAction, removeBlockedDayAction, saveAvailabilityAction } from "@/server/actions/planning";
@@ -127,11 +127,7 @@ export default async function SettingsPage() {
             <Row label="Email" value={user.email ?? "—"} />
             <Row label="Zona horaria" value={profile.timezone} />
           </dl>
-          <form action={signOut} className="mt-4">
-            <button type="submit" className={buttonClass.secondary}>
-              Cerrar sesión
-            </button>
-          </form>
+          <SignOutButton />
         </section>
       </div>
     </>

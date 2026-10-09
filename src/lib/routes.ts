@@ -1,5 +1,5 @@
 /** Rutas accesibles sin sesión. */
-const PUBLIC_PATHS = ["/login", "/auth", "/estado"];
+const PUBLIC_PATHS = ["/login", "/auth", "/estado", "/offline"];
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

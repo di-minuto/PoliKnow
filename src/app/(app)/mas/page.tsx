@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { InstallCard } from "@/components/pwa/install-card";
 
 export const metadata: Metadata = { title: "Más" };
 
@@ -10,6 +11,7 @@ export default function MorePage() {
   return (
     <>
       <PageHeader title="Más" />
+      <InstallCard />
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {secondary.map(({ href, label, icon: Icon }) => (
           <li key={href}>

@@ -7,6 +7,15 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const executablePath = process.env.PW_CHROMIUM_PATH;
 
+const appEnv = {
+  NEXT_PUBLIC_SUPABASE_URL: process.env.E2E_SUPABASE_URL ?? "http://127.0.0.1:54321",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.E2E_SUPABASE_KEY ?? "",
+  AI_PROVIDER: "openai",
+  OPENAI_API_KEY: "e2e-key",
+  AI_BASE_URL: "http://127.0.0.1:3199/v1",
+  AI_MODEL: "modelo-simulado",
+};
+
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: 60_000,
@@ -27,18 +36,24 @@ export default defineConfig({
       reuseExistingServer: true,
     },
     {
+      // Build de producción para probar la PWA (el service worker solo se registra en producción).
+      command: "npx next build && npx next start -p 3200",
+      url: "http://localhost:3200/login",
+      reuseExistingServer: true,
+      timeout: 300_000,
+      env: appEnv,
+    },
+    {
+      command: "node tests/e2e/toggle-proxy.mjs",
+      url: "http://127.0.0.1:3202/up",
+      reuseExistingServer: true,
+    },
+    {
       command: "npx next dev -p 3100",
       url: "http://localhost:3100/login",
       reuseExistingServer: true,
       timeout: 120_000,
-      env: {
-        NEXT_PUBLIC_SUPABASE_URL: process.env.E2E_SUPABASE_URL ?? "http://127.0.0.1:54321",
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.E2E_SUPABASE_KEY ?? "",
-        AI_PROVIDER: "openai",
-        OPENAI_API_KEY: "e2e-key",
-        AI_BASE_URL: "http://127.0.0.1:3199/v1",
-        AI_MODEL: "modelo-simulado",
-      },
+      env: appEnv,
     },
   ],
 });
