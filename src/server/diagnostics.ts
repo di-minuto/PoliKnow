@@ -1,6 +1,8 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { getPublicEnv } from "@/lib/env";
+import { getPublicEnv, readServerEnv } from "@/lib/env";
+import { getAIProvider } from "@/ai";
+import { DisabledProvider } from "@/ai/providers/disabled";
 
 export type Check = { label: string; ok: boolean; detail?: string; fix?: string };
 
@@ -67,6 +69,20 @@ export async function runDiagnostics(): Promise<Check[]> {
       checks.push({ label: `Tabla ${table}`, ok: true });
     }
   }
+
+  // IA (opcional): una variable mal escrita la desactiva, pero no rompe nada.
+  const ai = getAIProvider();
+  const { issues } = readServerEnv();
+  checks.push({
+    label: "Inteligencia artificial (opcional)",
+    ok: issues.length === 0 && (ai.enabled || !(ai instanceof DisabledProvider) || !ai.reason),
+    detail: ai.enabled ? `${ai.name} · ${ai.model}` : (!issues.length && ai instanceof DisabledProvider && ai.reason) || "Desactivada",
+    fix: issues.length
+      ? `${issues.map((i) => i.message).join(" ")} Corrígelo en Vercel (Settings → Environment Variables) y vuelve a desplegar.`
+      : ai instanceof DisabledProvider && ai.reason
+        ? "Añade la clave que falta en Vercel y vuelve a desplegar."
+        : undefined,
+  });
 
   // Fase 3: búsqueda (migración 20261009000003_search.sql).
   const search = await db.rpc("search_all", { q: "prueba", max_results: 1 });

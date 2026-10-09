@@ -26,7 +26,8 @@ export class OpenAIProvider implements AIProvider {
     private readonly fetcher: FetchLike = fetch,
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
-    this.name = this.baseUrl === OPENAI_BASE_URL ? "openai" : "openai-compatible";
+    this.name =
+      this.baseUrl === OPENAI_BASE_URL ? "openai" : this.baseUrl.includes("generativelanguage.googleapis.com") ? "gemini" : "openai-compatible";
   }
 
   async complete(request: AICompletionRequest): Promise<AICompletionResult> {

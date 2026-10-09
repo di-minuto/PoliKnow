@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { getServerEnv } from "@/lib/env";
+import { getServerEnv, readServerEnv } from "@/lib/env";
 import { buildCacheKey, stableStringify } from "./cache-key";
 import { AIResponseFormatError, completeJSON, extractJson } from "./json";
 import { AIDisabledError, type AIProvider } from "./provider";
@@ -35,6 +35,27 @@ describe("configuración de IA", () => {
     expect(() =>
       resolveAIProvider(getServerEnv({ AI_PROVIDER: "openai", OPENAI_API_KEY: "k", AI_BASE_URL: "http://localhost:1/v1" })),
     ).toThrow(/AI_MODEL/);
+  });
+
+  it("una variable mal escrita no rompe la app: se ignora y se anota", () => {
+    const read = readServerEnv({ AI_PROVIDER: "chatgpt-5", AI_BASE_URL: "no es url", AI_DAILY_TOKEN_LIMIT: "mucho" });
+    expect(read.env).toMatchObject({ AI_PROVIDER: "none", AI_DAILY_TOKEN_LIMIT: 300_000 });
+    expect(read.env.AI_BASE_URL).toBeUndefined();
+    expect(read.issues.map((i) => i.key)).toEqual(["AI_PROVIDER", "AI_BASE_URL", "AI_DAILY_TOKEN_LIMIT"]);
+    expect(() => getServerEnv({ AI_PROVIDER: "lo que sea" })).not.toThrow();
+  });
+
+  it("entiende los nombres habituales del proveedor", () => {
+    expect(getServerEnv({ AI_PROVIDER: " Claude " }).AI_PROVIDER).toBe("anthropic");
+    expect(getServerEnv({ AI_PROVIDER: "Gemini" }).AI_PROVIDER).toBe("gemini");
+    expect(getServerEnv({ AI_PROVIDER: "google" }).AI_PROVIDER).toBe("gemini");
+  });
+
+  it("Gemini solo necesita su clave", () => {
+    const gemini = resolveAIProvider(getServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: "k" }));
+    expect(gemini).toMatchObject({ enabled: true, name: "gemini", model: "gemini-2.5-flash" });
+    expect(resolveAIProvider(getServerEnv({ AI_PROVIDER: "gemini", OPENAI_API_KEY: "k" })).enabled).toBe(true);
+    expect(() => resolveAIProvider(getServerEnv({ AI_PROVIDER: "gemini" }))).toThrow(/GEMINI_API_KEY/);
   });
 
   it("una variable vacía cuenta como no puesta", () => {
