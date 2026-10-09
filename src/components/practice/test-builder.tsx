@@ -216,13 +216,26 @@ export function TestBuilder({
 }
 
 /** Un único botón que crea un test automático (p. ej. «Repasar fallos» desde los resultados). */
-export function QuickModeButton({ mode, subjectId, label }: { mode: string; subjectId: string | null; label: string }) {
+export function QuickModeButton({
+  mode,
+  subjectId,
+  label,
+  topicId,
+  count = 10,
+}: {
+  mode: string;
+  subjectId: string | null;
+  label: string;
+  topicId?: string;
+  count?: number;
+}) {
   const [state, action, pending] = useActionState(createTestAction, initialActionState);
   return (
     <form action={action} className="flex flex-col gap-2">
       <input type="hidden" name="mode" value={mode} />
-      <input type="hidden" name="count" value="10" />
+      <input type="hidden" name="count" value={count} />
       <input type="hidden" name="subjectId" value={subjectId ?? ""} />
+      {topicId && <input type="hidden" name="topic" value={topicId} />}
       <button type="submit" disabled={pending} className={buttonClass.secondary}>
         {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <RotateCcw className="size-4" aria-hidden />}
         {label}

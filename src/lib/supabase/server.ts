@@ -10,6 +10,12 @@ export async function createClient() {
   const env = getPublicEnv();
 
   return createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+    global: {
+      // Next memoriza los GET iguales dentro de un mismo render. Una página que
+      // escribe y luego relee (el plan de Hoy) vería datos viejos: con una señal
+      // propia cada consulta va a la base de datos.
+      fetch: (input, init) => fetch(input, { ...init, signal: init?.signal ?? new AbortController().signal }),
+    },
     cookies: {
       getAll() {
         return cookieStore.getAll();

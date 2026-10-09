@@ -16,7 +16,7 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
 | 4 | Banco de preguntas | ✅ Hecha |
 | 5 | Tests y repaso espaciado | ✅ Hecha |
 | 6 | Simulador de exámenes | ✅ Hecha |
-| 7 | Planificador | Pendiente |
+| 7 | Planificador, pantalla HOY y sesiones | ✅ Hecha |
 | 8 | Dashboard y estadísticas | Pendiente |
 | 9 | IA y procesamiento de documentos | Pendiente |
 | 10 | PWA y optimización móvil | Pendiente |
@@ -140,6 +140,29 @@ tests y exámenes oficiales, y seguir un plan de estudio adaptativo con repaso e
   se autoevalúan después (Mal / Regular / Bien) y la nota se recalcula.
 - Cada intento se guarda en el historial de Tests y alimenta el repaso espaciado.
 - Sin migraciones nuevas.
+
+### Fase 7: qué incluye
+
+- **Planificador automático** (`src/domain/scheduler`, función pura con tests): reparte
+  el temario de cada examen pendiente (con fecha y temas) en los días disponibles,
+  según tus horas por día y los días sin estudio de Ajustes. Pondera días restantes,
+  peso del tema en el parcial, importancia, dificultad, horas estimadas, lo ya
+  estudiado, el dominio en tests y lo que no has entendido.
+- **Repaso espaciado en el plan**: un tema estudiado se repasa al día siguiente y luego
+  con intervalos crecientes (con test si hay preguntas). Simulacro dos días antes de
+  cada examen y repaso general la víspera.
+- **Plan dinámico**: se recalcula al abrir Hoy o el Plan y al cerrar cada sesión (solo
+  escribe si algo cambia). Lo no hecho o saltado se reparte en los días siguientes; si
+  mejoras en un tema baja su prioridad; si fallas, sube. Avisa si no da tiempo.
+- **HOY** (pantalla principal): tareas del día por asignatura y tema (teoría, ejercicios,
+  práctica), repasos y simulacros, total del día y botón **EMPEZAR SESIÓN**.
+- **Sesiones** (`/sesion/[id]`): qué hacer, material del tema, cronómetro (se recuerda al
+  recargar) y cierre con ¿lo has completado?, dificultad percibida (de muy fácil a muy
+  difícil) y «No he entendido bien este tema». Eso ajusta el avance del tema, su
+  prioridad y trae un repaso al día siguiente si hace falta.
+- **Plan** (`/plan`): los próximos días con lo planificado frente al tiempo disponible,
+  días de examen, temario visto por parcial, saltar tareas y recalcular.
+- Sin migraciones nuevas: usa `plan_tasks`, `study_sessions` y `topic_progress`.
 
 ## Puesta en marcha
 

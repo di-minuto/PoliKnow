@@ -80,7 +80,7 @@ test("configurar asignatura, temas y parcial", async ({ page }) => {
 
   // Aparece en Hoy y en la lista de asignaturas
   await page.goto("/hoy");
-  await expect(page.getByText("CPA · Parcial 1")).toBeVisible();
+  await expect(page.getByRole("link", { name: /^CPA · Parcial 1 .*Faltan/ })).toBeVisible();
   await page.goto("/asignaturas");
   await expect(page.getByText("Próximo: Parcial 1")).toBeVisible();
   await shot(page, "04-asignaturas");
